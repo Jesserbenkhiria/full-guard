@@ -1,0 +1,39 @@
+services:
+  mongodb:
+    image: mongo:7
+    container_name: guard-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:-guard}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:-guard_secret}
+      MONGO_INITDB_DATABASE: ${MONGO_INITDB_DATABASE:-guard}
+    volumes:
+      - mongodb_data:/data/db
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: guard-app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: mongodb://${MONGO_INITDB_ROOT_USERNAME:-guard}:${MONGO_INITDB_ROOT_PASSWORD:-guard_secret}@mongodb:27017/${MONGO_INITDB_DATABASE:-guard}?authSource=admin
+      NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME:-BLACK SHIELD SÉCURITÉ PRIVÉE}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+      AUTH_SECRET: ${AUTH_SECRET:-change-me}
+      AUTH_ENABLED: ${AUTH_ENABLED:-false}
+    depends_on:
+      mongodb:
+        condition: service_healthy
+
+volumes:
+  mongodb_data:

@@ -1,0 +1,350 @@
+// Guard - Security Staff Planning Platform
+// MongoDB schema for Prisma ORM
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+enum DayOfWeek {
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+  SATURDAY
+  SUNDAY
+}
+
+enum ShiftType {
+  DAY
+  NIGHT
+  CUSTOM
+  OFF
+}
+
+enum SiteRestrictionType {
+  ONLY
+  PREFERRED
+  ANY
+}
+
+enum AgentSiteRuleType {
+  ONLY
+  PREFERRED
+  BLOCKED
+}
+
+enum PlanningStatus {
+  DRAFT
+  IN_REVIEW
+  VALIDATED
+  EXPORTED
+}
+
+enum AlertSeverity {
+  ERROR
+  WARNING
+  SUCCESS
+}
+
+enum DocumentType {
+  SITE_PLANNING_PDF
+  AGENT_PLANNING_PDF
+  EXCEL_IMPORT
+  CSV_IMPORT
+}
+
+enum UserRole {
+  ADMIN
+  PLANNER
+  VIEWER
+}
+
+enum AbsenceReason {
+  VACATION
+  SICK_LEAVE
+  PERSONAL
+  TRAINING
+  OTHER
+}
+
+enum PositionRole {
+  TEAM_LEADER
+  AGENT
+}
+
+// ─── Auth (placeholder) ──────────────────────────────────────────────────────
+
+model User {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  email     String   @unique
+  name      String
+  role      UserRole @default(PLANNER)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ─── Core entities ───────────────────────────────────────────────────────────
+
+model Agent {
+  id                    String   @id @default(auto()) @map("_id") @db.ObjectId
+  firstName             String
+  lastName              String
+  phone                 String?
+  email                 String?
+  contractHours         Int?
+  overtimeAllowed       Boolean  @default(false)
+  canWorkNight          Boolean  @default(true)
+  maxVacationsPerMonth  Int?
+  preferredDays         DayOfWeek[]
+  dayOnly               Boolean  @default(false)
+  nightForbidden        Boolean  @default(false)
+  isTeamLeader          Boolean  @default(false)
+  active                Boolean  @default(true)
+  notes                 String?
+
+  siteRestrictionType SiteRestrictionType @default(ANY)
+  allowedSiteIds      String[]            @db.ObjectId
+
+  siteRules      AgentSiteRule[]
+  absences       Absence[]
+  medicalVisits  MedicalVisit[]
+  unavailableDates UnavailableDate[]
+  vacations      Vacation[]
+  assignments    Assignment[]
+  alerts         Alert[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([lastName, firstName])
+}
+
+model Site {
+  id       String  @id @default(auto()) @map("_id") @db.ObjectId
+  name     String  @unique
+  address  String?
+  client   String?
+  active   Boolean @default(true)
+  notes    String?
+  shiftDurationHours Int?
+
+  requirements SiteRequirement[]
+  assignments  Assignment[]
+  alerts       Alert[]
+  agentRules   AgentSiteRule[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AgentSiteRule {
+  id             String            @id @default(auto()) @map("_id") @db.ObjectId
+  agentId        String            @db.ObjectId
+  agent          Agent             @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  siteId         String            @db.ObjectId
+  site           Site              @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  ruleType       AgentSiteRuleType
+  allowedDays    DayOfWeek[]
+  fixedStartTime String?
+  fixedEndTime   String?
+  maxHours       Int?
+  notes          String?
+  active         Boolean           @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([agentId, siteId])
+  @@index([agentId])
+  @@index([siteId])
+}
+
+model SiteRequirement {
+  id          String     @id @default(auto()) @map("_id") @db.ObjectId
+  siteId      String     @db.ObjectId
+  site        Site       @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  label       String?
+  days        DayOfWeek[]
+  shiftType   ShiftType
+  startTime   String
+  endTime     String
+  role        PositionRole @default(AGENT)
+  agentCount  Int        @default(1)
+  priority    Int        @default(0)
+  active      Boolean    @default(true)
+  specificDate DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([siteId])
+}
+
+// ─── Planning ────────────────────────────────────────────────────────────────
+
+model PlanningMonth {
+  id          String         @id @default(auto()) @map("_id") @db.ObjectId
+  year        Int
+  month       Int
+  status      PlanningStatus @default(DRAFT)
+  validatedAt DateTime?
+  notes       String?
+
+  assignments Assignment[]
+  alerts      Alert[]
+  documents   Document[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([year, month])
+}
+
+model Assignment {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  planningMonthId String    @db.ObjectId
+  planningMonth   PlanningMonth @relation(fields: [planningMonthId], references: [id], onDelete: Cascade)
+  agentId         String    @db.ObjectId
+  agent           Agent     @relation(fields: [agentId], references: [id])
+  siteId          String    @db.ObjectId
+  site            Site      @relation(fields: [siteId], references: [id])
+  requirementId   String?   @db.ObjectId
+  date            DateTime
+  shiftType       ShiftType
+  role            PositionRole @default(AGENT)
+  startTime       String
+  endTime         String
+  hours           Float?
+  notes           String?
+
+  aiGenerated     Boolean  @default(false)
+  aiConfidence    Float?
+  aiExplanation   String?
+
+  alerts Alert[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([planningMonthId, date])
+  @@index([agentId, date])
+  @@index([siteId, date])
+}
+
+// ─── Agent availability ──────────────────────────────────────────────────────
+
+model Vacation {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  agentId   String   @db.ObjectId
+  agent     Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  startDate DateTime
+  endDate   DateTime
+  reason    String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([agentId, startDate, endDate])
+}
+
+model Absence {
+  id        String        @id @default(auto()) @map("_id") @db.ObjectId
+  agentId   String        @db.ObjectId
+  agent     Agent         @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  startDate DateTime
+  endDate   DateTime
+  reason    AbsenceReason @default(OTHER)
+  notes     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([agentId])
+}
+
+model MedicalVisit {
+  id      String   @id @default(auto()) @map("_id") @db.ObjectId
+  agentId String   @db.ObjectId
+  agent   Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  date    DateTime
+  time    String
+  notes   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([agentId, date])
+}
+
+model UnavailableDate {
+  id      String   @id @default(auto()) @map("_id") @db.ObjectId
+  agentId String   @db.ObjectId
+  agent   Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  date    DateTime
+  reason  String?
+
+  createdAt DateTime @default(now())
+
+  @@index([agentId, date])
+}
+
+// ─── Rules & alerts ────────────────────────────────────────────────────────────
+
+model Rule {
+  id          String        @id @default(auto()) @map("_id") @db.ObjectId
+  code        String        @unique
+  name        String
+  description String?
+  enabled     Boolean       @default(true)
+  severity    AlertSeverity @default(ERROR)
+  category    String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Alert {
+  id              String        @id @default(auto()) @map("_id") @db.ObjectId
+  planningMonthId String        @db.ObjectId
+  planningMonth   PlanningMonth @relation(fields: [planningMonthId], references: [id], onDelete: Cascade)
+  agentId         String?       @db.ObjectId
+  agent           Agent?        @relation(fields: [agentId], references: [id])
+  siteId          String?       @db.ObjectId
+  site            Site?         @relation(fields: [siteId], references: [id])
+  assignmentId    String?       @db.ObjectId
+  assignment      Assignment?   @relation(fields: [assignmentId], references: [id])
+  ruleCode        String
+  severity        AlertSeverity
+  message         String
+  resolved        Boolean       @default(false)
+  resolvedAt      DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([planningMonthId, severity])
+  @@index([resolved])
+}
+
+// ─── Documents & import ──────────────────────────────────────────────────────
+
+model Document {
+  id              String        @id @default(auto()) @map("_id") @db.ObjectId
+  planningMonthId String?       @db.ObjectId
+  planningMonth   PlanningMonth? @relation(fields: [planningMonthId], references: [id])
+  type            DocumentType
+  fileName        String
+  filePath        String?
+  mimeType        String?
+  metadata        Json?
+  generatedAt     DateTime      @default(now())
+
+  createdAt DateTime @default(now())
+}
