@@ -178,6 +178,11 @@ export function PlanningSuggestionsDialog({
                         <Badge variant={top.accepted ? "secondary" : "destructive"}>
                           {top.score}%
                         </Badge>
+                        {top.remainingHours != null && top.contractHours != null && (
+                          <span className="ml-1 text-xs font-normal text-sky-700 dark:text-sky-400">
+                            · {top.remainingHours}h {fr.planning.remainingHoursShort}
+                          </span>
+                        )}
                       </p>
                       <div className="flex flex-wrap gap-x-3 gap-y-1">
                         {(top.reasonDetails.length > 0

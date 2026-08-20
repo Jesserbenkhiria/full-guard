@@ -56,6 +56,7 @@ export function AgentPlanningView({
               </th>
             ))}
             <th className="min-w-[100px] px-2 py-2 text-right font-medium">{fr.planning.totalHours}</th>
+            <th className="min-w-[90px] px-2 py-2 text-right font-medium">{fr.planning.remainingHours}</th>
           </tr>
         </thead>
         <tbody>
@@ -96,6 +97,30 @@ export function AgentPlanningView({
                   <div className="text-[10px] text-muted-foreground">
                     / {agent.contractHours}h
                   </div>
+                )}
+              </td>
+              <td className="px-2 py-2 text-right font-medium">
+                {agent.remainingHours != null ? (
+                  <>
+                    <span
+                      className={
+                        agent.remainingHours <= 0
+                          ? "text-red-600"
+                          : agent.remainingHours <= 20
+                            ? "text-amber-600"
+                            : "text-emerald-700 dark:text-emerald-400"
+                      }
+                    >
+                      {agent.remainingHours}h
+                    </span>
+                    {agent.contractHours && (
+                      <div className="text-[10px] text-muted-foreground">
+                        / {agent.contractHours}h
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <span className="text-muted-foreground">—</span>
                 )}
               </td>
             </tr>

@@ -59,6 +59,17 @@ export type AgentCandidateContext = {
     startTime: string;
     endTime: string;
   }[];
+  engineFitScore: number;
+  rankingSignals: {
+    preferredDay: boolean | null;
+    weekendWeeksUsed: number;
+    consecutiveDaysIfAssigned: number;
+    restHours: number | null;
+    assignmentCount: number;
+    workedHours: number;
+    fairnessDeltaHours: number;
+    contractUtilization: number | null;
+  };
 };
 
 export type PlanningAssistantContext = {

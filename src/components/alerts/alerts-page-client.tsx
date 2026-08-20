@@ -69,7 +69,12 @@ export function AlertsPageClient({
             <ChevronRight className="size-4" />
           </Button>
         </div>
-        <Button variant="outline" size="sm" render={<Link href={`/planning?year=${year}&month=${month}`} />}>
+        <Button
+          variant="outline"
+          size="sm"
+          nativeButton={false}
+          render={<Link href={`/planning?year=${year}&month=${month}`} />}
+        >
           {fr.alerts.openPlanning}
         </Button>
       </div>
@@ -145,6 +150,7 @@ export function AlertsPageClient({
                       variant="ghost"
                       size="sm"
                       className="shrink-0 text-xs"
+                      nativeButton={false}
                       render={<Link href={`/planning?year=${year}&month=${month}`} />}
                     >
                       {fr.alerts.fixInPlanning}

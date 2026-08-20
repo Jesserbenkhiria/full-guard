@@ -1,3 +1,29 @@
+export function shiftDateTimeRange(
+  date: Date,
+  startTime: string,
+  endTime: string
+): { start: Date; end: Date } {
+  const [sh, sm] = startTime.split(":").map(Number);
+  const [eh, em] = endTime.split(":").map(Number);
+  const start = new Date(date);
+  start.setHours(sh, sm, 0, 0);
+  const end = new Date(date);
+  end.setHours(eh, em, 0, 0);
+  if (end <= start) end.setDate(end.getDate() + 1);
+  return { start, end };
+}
+
+export function hoursBetweenShifts(
+  earlier: { date: Date; startTime: string; endTime: string },
+  later: { date: Date; startTime: string; endTime: string }
+): number {
+  const a = shiftDateTimeRange(earlier.date, earlier.startTime, earlier.endTime);
+  const b = shiftDateTimeRange(later.date, later.startTime, later.endTime);
+  const first = a.start <= b.start ? a : b;
+  const second = a.start <= b.start ? b : a;
+  return (second.start.getTime() - first.end.getTime()) / 3_600_000;
+}
+
 export function calculateShiftHours(startTime: string, endTime: string): number {
   const [sh, sm] = startTime.split(":").map(Number);
   const [eh, em] = endTime.split(":").map(Number);
@@ -39,4 +65,12 @@ export function sumAssignmentHours(
       0
     ) * 10
   ) / 10;
+}
+
+export function getRemainingContractHours(
+  contractHours: number | null | undefined,
+  workedHours: number
+): number | null {
+  if (contractHours == null) return null;
+  return Math.max(0, Math.round((contractHours - workedHours) * 10) / 10);
 }

@@ -94,6 +94,7 @@ export type AgentPlanningRow = {
   days: AgentDayCell[];
   totalHours: number;
   overtimeHours: number;
+  remainingHours: number | null;
 };
 
 export type PlanningMonthDto = {
@@ -110,6 +111,10 @@ export type AgentSuggestion = {
   accepted: boolean;
   reasons: string[];
   reasonDetails: SuggestionReasonDetail[];
+  contractHours?: number | null;
+  workedHours?: number;
+  remainingHours?: number | null;
+  shiftHours?: number;
   aiGenerated?: boolean;
   aiExplanation?: string;
   aiConfidence?: number;

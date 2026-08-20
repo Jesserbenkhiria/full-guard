@@ -1,14 +1,21 @@
 import { prisma } from "@/lib/db";
 import { formatAgentName, POSITION_ROLE_LABELS, resolveIsTeamLeader } from "@/lib/constants";
-import { calculateShiftHours, sumAssignmentHours } from "@/lib/planning/hours";
+import { calculateShiftHours, getRemainingContractHours, sumAssignmentHours } from "@/lib/planning/hours";
 import {
   evaluateAgentForSlot,
   loadAgentsAvailabilityForDate,
   mapRuleResultsToReasons,
-  scoreSiteFit,
   type VacationSlot,
 } from "@/services/rules/eligibility";
 import { createConfiguredEngine } from "@/services/rules/load-engine";
+import { clampScore, scoreAssignmentFit, teamAverageHours } from "@/services/planning/score-fit";
+import {
+  buildDedicatedSiteIds,
+  compareAgentsForSlot,
+  getAgentSlotDedication,
+  isAgentAllowedOnDedicatedSite,
+  type SlotPickContext,
+} from "@/services/planning/constraint-priority";
 import type { AgentSuggestion, SuggestionReasonDetail } from "@/types/planning";
 import type { Agent, AgentSiteRule, ShiftType } from "@prisma/client";
 import { fr } from "@/lib/i18n/fr";
@@ -82,12 +89,22 @@ export async function getAgentSuggestions(
   const siteName = site?.name ?? "";
   const siteCountMap = new Map(siteHistory.map((s) => [s.agentId, s._count.id]));
   const shiftHours = calculateShiftHours(input.startTime, input.endTime);
+  const avgHours = teamAverageHours(monthAssignments, agents.length);
   const availabilityMap = await loadAgentsAvailabilityForDate(
     agents.map((a) => a.id),
     input.date
   );
 
   const suggestions: AgentSuggestion[] = [];
+  const dedicatedSiteIds = buildDedicatedSiteIds(agents);
+  const pickCtx: SlotPickContext = {
+    siteId: input.siteId,
+    date: input.date,
+    startTime: input.startTime,
+    endTime: input.endTime,
+    shiftType: input.shiftType,
+    role: input.role,
+  };
 
   for (const agent of agents) {
     const agentName = formatAgentName(agent.firstName, agent.lastName);
@@ -103,7 +120,7 @@ export async function getAgentSuggestions(
     );
 
     const mapped = mapRuleResultsToReasons(results);
-    let score = eligible ? 70 : 0;
+    let score = eligible ? 55 : 0;
     let accepted = eligible;
 
     if (input.role === "TEAM_LEADER") {
@@ -119,38 +136,44 @@ export async function getAgentSuggestions(
       }
     }
 
+    if (
+      accepted &&
+      !isAgentAllowedOnDedicatedSite(agent, input.siteId, dedicatedSiteIds)
+    ) {
+      accepted = false;
+      score = 0;
+      addReason(
+        mapped.reasons,
+        mapped.reasonDetails,
+        fr.planning.sitePoolRequired,
+        "error"
+      );
+    }
+
     if (accepted) {
-      score += scoreSiteFit(agent, input.siteId, input.date);
-
-      const siteRule = agent.siteRules.find((r) => r.siteId === input.siteId);
-      if (siteRule?.fixedStartTime && siteRule.fixedStartTime === input.startTime) {
-        score += 8;
-        addReason(mapped.reasons, mapped.reasonDetails, fr.planning.scheduleCompatible, "ok");
-      } else if (siteRule?.fixedStartTime) {
-        score -= 5;
+      const agentMonthCount = monthAssignments.filter(
+        (a) => a.agentId === agent.id && a.siteId === input.siteId
+      ).length;
+      const warningCount = mapped.reasonDetails.filter((r) => r.type === "warn").length;
+      const fit = scoreAssignmentFit({
+        agent,
+        siteId: input.siteId,
+        date: input.date,
+        startTime: input.startTime,
+        endTime: input.endTime,
+        shiftHours,
+        monthAssignments,
+        siteHistoryCount: agentMonthCount,
+        allTimeSiteCount: siteCountMap.get(agent.id) ?? 0,
+        teamAvgHours: avgHours,
+        warningCount,
+      });
+      score += fit.delta;
+      for (const reason of fit.reasons) {
+        addReason(mapped.reasons, mapped.reasonDetails, reason.text, reason.type);
       }
-
-      const agentMonthAssignments = monthAssignments.filter((a) => a.agentId === agent.id);
-      const hourCap = siteRule?.maxHours ?? agent.contractHours;
-      if (hourCap) {
-        const projected = sumAssignmentHours(agentMonthAssignments) + shiftHours;
-        if (projected <= hourCap * 0.85) {
-          score += 5;
-          addReason(mapped.reasons, mapped.reasonDetails, "Contrat OK", "ok");
-        } else if (projected <= hourCap) {
-          addReason(
-            mapped.reasons,
-            mapped.reasonDetails,
-            `${fr.planning.nearHourLimit} ${hourCap}h`,
-            "warn"
-          );
-        }
-      }
-
-      const siteCount = siteCountMap.get(agent.id) ?? 0;
-      if (siteCount >= 3) {
-        score += 4;
-        addReason(mapped.reasons, mapped.reasonDetails, "Connaît bien ce site", "ok");
+      if (getAgentSlotDedication(agent, pickCtx) >= 100) {
+        addReason(mapped.reasons, mapped.reasonDetails, fr.planning.dedicatedAgent, "ok");
       }
     }
 
@@ -158,18 +181,28 @@ export async function getAgentSuggestions(
       addReason(mapped.reasons, mapped.reasonDetails, "Non éligible", "error");
     }
 
+    const agentMonthAssignments = monthAssignments.filter(
+      (a) => a.agentId === agent.id && a.id !== input.excludeAssignmentId
+    );
+    const workedHours = sumAssignmentHours(agentMonthAssignments);
+    const remainingHours = getRemainingContractHours(agent.contractHours, workedHours);
+
     suggestions.push({
       agentId: agent.id,
       agentName,
-      score: Math.max(0, Math.min(100, score)),
+      score: clampScore(score),
       accepted,
       reasons: mapped.reasons,
       reasonDetails: mapped.reasonDetails,
+      contractHours: agent.contractHours,
+      workedHours,
+      remainingHours,
+      shiftHours,
     });
   }
 
   return suggestions.sort((a, b) => {
-    if (a.accepted !== b.accepted) return a.accepted ? -1 : 1;
-    return b.score - a.score;
+    const agentsById = new Map(agents.map((a) => [a.id, a]));
+    return compareAgentsForSlot(a, b, agentsById, pickCtx);
   });
 }

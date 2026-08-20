@@ -37,6 +37,11 @@ import { fr } from "@/lib/i18n/fr";
 import type { AgentSuggestion, PlanningAssignmentDto, PlanningSlotDto, SuggestionReasonDetail } from "@/types/planning";
 import { CheckCircle2, XCircle, AlertTriangle, Sparkles } from "lucide-react";
 
+function formatRemainingHours(s: AgentSuggestion): string | null {
+  if (s.remainingHours == null || s.contractHours == null) return null;
+  return `${s.remainingHours}h ${fr.planning.remainingHoursShort} / ${s.contractHours}h`;
+}
+
 function SuggestionReasonLine({ detail }: { detail: SuggestionReasonDetail }) {
   const Icon =
     detail.type === "ok" ? CheckCircle2 : detail.type === "warn" ? AlertTriangle : XCircle;
@@ -121,6 +126,9 @@ export function AssignmentDialog({
       .then(setSuggestions)
       .finally(() => setLoadingSuggestions(false));
   }, [open, context, assignment, slot, planningMonthId, useAi]);
+
+  const selectedSuggestion = suggestions.find((s) => s.agentId === agentId);
+  const selectedRemaining = selectedSuggestion ? formatRemainingHours(selectedSuggestion) : null;
 
   if (!context) return null;
 
@@ -252,9 +260,11 @@ export function AssignmentDialog({
                 <p className="text-sm text-muted-foreground">
                   {useAi ? fr.planning.aiSuggestionsLoading : fr.common.saving}
                 </p>
+              ) : suggestions.filter((s) => s.accepted).length === 0 ? (
+                <p className="text-sm text-muted-foreground">{fr.planning.noValidatedAgents}</p>
               ) : (
                 <ul className="max-h-48 space-y-2 overflow-y-auto">
-                  {suggestions.slice(0, 6).map((s, i) => (
+                  {suggestions.filter((s) => s.accepted).slice(0, 6).map((s, i) => (
                     <li key={s.agentId}>
                       <button
                         type="button"
@@ -283,6 +293,11 @@ export function AssignmentDialog({
                             {i === 1 && s.accepted && (
                               <span className="text-[10px] text-muted-foreground">
                                 {fr.planning.aiAlternative}
+                              </span>
+                            )}
+                            {formatRemainingHours(s) && (
+                              <span className="text-[10px] font-medium text-sky-700 dark:text-sky-400">
+                                {formatRemainingHours(s)}
                               </span>
                             )}
                           </div>
@@ -322,6 +337,11 @@ export function AssignmentDialog({
                   ))}
                 </SelectContent>
               </Select>
+              {selectedRemaining && (
+                <p className="text-xs text-sky-700 dark:text-sky-400">
+                  {fr.planning.remainingHours}: {selectedRemaining}
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">

@@ -4,6 +4,10 @@ import { ruleFail, rulePass } from "@/services/rules/rule-result";
 import { sumAssignmentHours } from "@/lib/planning/hours";
 import { isForbiddenDayNightTransition } from "@/services/rules/shift-classification";
 import { isDateInRange, toDateKey, parseDateKey, getDayOfWeek } from "@/lib/planning/dates";
+import {
+  countWeekendWeeksWorked,
+  isWeekendDay,
+} from "@/lib/planning/weekends";
 
 function countVacationPeriodsInMonth(
   vacations: { startDate: Date; endDate: Date }[],
@@ -201,32 +205,22 @@ export const weekendLimitRule: PlanningRule = {
   code: "MAX_WEEKENDS",
   name: "Maximum week-ends",
   check(ctx: ExtendedRuleContext) {
-    const weekendWeeks = new Set<string>();
-
-    for (const a of ctx.monthAssignments) {
-      const dow = getDayOfWeek(a.date);
-      if (dow !== "SATURDAY" && dow !== "SUNDAY") continue;
-      const weekKey = `${a.date.getFullYear()}-W${getWeekNumber(a.date)}`;
-      weekendWeeks.add(weekKey);
+    if (!isWeekendDay(ctx.date)) {
+      return rulePass();
     }
 
-    if (weekendWeeks.size > MAX_WEEKENDS_PER_MONTH) {
+    const weekendWeeks = countWeekendWeeksWorked(ctx.monthAssignments, ctx.date);
+
+    if (weekendWeeks > MAX_WEEKENDS_PER_MONTH) {
       return ruleFail(
         "WARNING",
-        `${ctx.agentName} — maximum de week-ends travaillés par mois dépassé (${weekendWeeks.size}/${MAX_WEEKENDS_PER_MONTH})`,
+        `${ctx.agentName} — maximum de week-ends travaillés par mois dépassé (${weekendWeeks}/${MAX_WEEKENDS_PER_MONTH})`,
         "MAX_WEEKENDS"
       );
     }
     return rulePass();
   },
 };
-
-function getWeekNumber(date: Date): number {
-  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
-  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-  return Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
-}
 
 export const canWorkNightRule: PlanningRule = {
   code: "CANNOT_WORK_NIGHT",

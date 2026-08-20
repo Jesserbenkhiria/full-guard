@@ -2,7 +2,7 @@ import { prisma } from "@/lib/db";
 import { computePlanningSummary } from "@/lib/planning/summary";
 import { formatAgentName, resolveIsTeamLeader } from "@/lib/constants";
 import { getDayOfWeek, getMonthDays, toDateKey } from "@/lib/planning/dates";
-import { sumAssignmentHours } from "@/lib/planning/hours";
+import { sumAssignmentHours, getRemainingContractHours } from "@/lib/planning/hours";
 import {
   assignmentsMatchSlot,
   formatShiftLabel,
@@ -217,6 +217,7 @@ function buildAgentRows(
       const agentAssignments = assignments.filter((a) => a.agentId === agent.id);
       const totalHours = sumAssignmentHours(agentAssignments);
       const contractHours = agent.contractHours;
+      const remainingHours = getRemainingContractHours(contractHours, totalHours);
       const overtimeHours =
         contractHours && totalHours > contractHours
           ? Math.round((totalHours - contractHours) * 10) / 10
@@ -273,6 +274,7 @@ function buildAgentRows(
         days: daysCells,
         totalHours,
         overtimeHours,
+        remainingHours,
       };
     });
 }

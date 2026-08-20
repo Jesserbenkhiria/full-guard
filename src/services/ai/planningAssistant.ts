@@ -26,21 +26,29 @@ import {
   type ValidatedAiSuggestion,
 } from "@/services/ai/types";
 import type { AgentSuggestion } from "@/types/planning";
+import { blendEngineAndAiScore } from "@/services/planning/score-fit";
 
 const SYSTEM_PROMPT = `You are a security staffing planning assistant for BLACK SHIELD SÉCURITÉ PRIVÉE (France).
 
-Your job: rank agents for a vacation/shift slot.
+Your job: rank the provided candidates for ONE vacation/shift slot.
+
+The engineFitScore is a deterministic fit score (0-100). Treat it as the primary ranking.
+You may adjust scores by at most 15 points to break close ties, using rankingSignals.
+
+Priority order (highest first):
+1. Fill constrained agents on their ONLY site + allowed days first (e.g. MBODJI — LE DOUZE lundi/mardi only).
+2. ONLY-site agents without day limits, then PREFERRED-site agents.
+3. Day-only or night-restricted specialists on matching shifts.
+4. Polyvalent agents (siteRestrictionType ANY, no site rules) are LAST — backup/replacement only.
+5. Never auto-pick an agent who fails hard rules; only validated (eligible) candidates.
 
 Rules:
-- Prefer agents already attached to the site (high siteAssignmentCount).
-- Prefer agents with sufficient remaining contract hours.
-- Prefer agents with fewer total assignments for fair distribution.
-- Respect site rules, fixed start times, allowed days, day/night restrictions.
-- Never suggest agents clearly unavailable (vacation, absence, medical, unavailable date).
-- Provide honest warnings (e.g. fixed start time mismatch, near hour limit).
+- Only rank candidates in the list. Use agentId values exactly as provided.
+- Never suggest an agent with availability flags true (vacation, absence, medical, unavailable).
+- Warnings must be honest (near hour limit, not preferred day, weekend load, tight rest).
+- Score 0-100 (higher = better fit). Stay close to engineFitScore.
 - Return ONLY valid JSON matching the schema.
-- Use agentId values exactly as provided in candidates.
-- Score 0-100 (higher = better fit).`;
+- Reasoning: short French phrases the planner will see.`;
 
 function formatAiExplanation(item: AiSuggestionItem, agentName: string): string {
   const lines = [`${agentName} sélectionné :`, ...item.reasoning.map((r) => `- ${r}`)];
@@ -92,7 +100,15 @@ async function callOpenAiForSuggestions(
         role: "user",
         content: JSON.stringify(
           {
-            task: "Rank agents for this vacation requirement.",
+            task: "Rank agents for this vacation requirement. Stay close to engineFitScore; use rankingSignals for tie-breaks.",
+            rankingPolicy: {
+              primary: "engineFitScore",
+              maxAdjustment: 15,
+              preferDedicatedOverPolyvalent: true,
+              preferPreferredDays: true,
+              preferUnderusedAgents: true,
+              avoidTightRest: true,
+            },
             requirement: context.requirement,
             candidates: context.candidates,
             activeBusinessRules: context.activeRules,
@@ -115,7 +131,8 @@ export async function validateAiSuggestion(
   input: SlotContextInput,
   item: AiSuggestionItem,
   agentName: string,
-  session: PlanningSession
+  session: PlanningSession,
+  engineScore?: number
 ): Promise<ValidatedAiSuggestion> {
   const agent = session.agentsById.get(item.agentId);
 
@@ -134,6 +151,7 @@ export async function validateAiSuggestion(
 
   const slot = session.toVacationSlot(input);
   const { eligible, results } = await session.evaluateAgent(item.agentId, slot);
+  const blendedScore = blendEngineAndAiScore(engineScore ?? item.score, item.score);
 
   const mapped = mapRuleResultsToReasons(results);
   const ruleFailures = mapped.reasonDetails
@@ -145,7 +163,7 @@ export async function validateAiSuggestion(
   return {
     agentId: item.agentId,
     agentName: name,
-    score: item.score,
+    score: blendedScore,
     accepted: eligible,
     reasoning: item.reasoning,
     warnings: [
@@ -157,7 +175,10 @@ export async function validateAiSuggestion(
   };
 }
 
-function toAgentSuggestion(validated: ValidatedAiSuggestion): AgentSuggestion {
+function toAgentSuggestion(
+  validated: ValidatedAiSuggestion,
+  engine?: AgentSuggestion
+): AgentSuggestion {
   const reasonDetails = [
     ...validated.reasoning.map((text) => ({ text: `✓ ${text}`, type: "ok" as const })),
     ...validated.warnings.map((text) => ({ text: `⚠ ${text}`, type: "warn" as const })),
@@ -171,6 +192,10 @@ function toAgentSuggestion(validated: ValidatedAiSuggestion): AgentSuggestion {
     accepted: validated.accepted,
     reasons: reasonDetails.map((r) => r.text),
     reasonDetails,
+    contractHours: engine?.contractHours,
+    workedHours: engine?.workedHours,
+    remainingHours: engine?.remainingHours,
+    shiftHours: engine?.shiftHours,
     aiGenerated: true,
     aiExplanation: validated.aiExplanation,
     aiConfidence: validated.score,
@@ -196,6 +221,8 @@ export async function getAiPlanningSuggestions(
   }
 
   try {
+    const engineSuggestions = await session.getSuggestions(input);
+    const engineById = new Map(engineSuggestions.map((s) => [s.agentId, s]));
     const context = await buildPlanningAssistantContext(input, session);
     const candidateNames = new Map(context.candidates.map((c) => [c.agentId, c.name]));
 
@@ -203,14 +230,27 @@ export async function getAiPlanningSuggestions(
     const validated = await Promise.all(
       aiItems.map((item) => {
         const name = candidateNames.get(item.agentId) ?? item.agentId;
-        return validateAiSuggestion(input, item, name, session);
+        return validateAiSuggestion(
+          input,
+          item,
+          name,
+          session,
+          engineById.get(item.agentId)?.score
+        );
       })
     );
 
-    const accepted = validated.filter((v) => v.accepted);
+    const accepted = validated
+      .filter((v) => v.accepted)
+      .sort((a, b) => b.score - a.score);
     const rejected = validated.filter((v) => !v.accepted);
+    const aiMapped = [...accepted, ...rejected].map((v) =>
+      toAgentSuggestion(v, engineById.get(v.agentId))
+    );
+    const seen = new Set(aiMapped.map((s) => s.agentId));
+    const rest = engineSuggestions.filter((s) => !seen.has(s.agentId));
 
-    return [...accepted, ...rejected].map(toAgentSuggestion);
+    return [...aiMapped, ...rest];
   } catch {
     return rulesEngineFallback(input, session);
   }

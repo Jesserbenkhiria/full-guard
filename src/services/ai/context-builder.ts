@@ -3,14 +3,15 @@ import { formatAgentName } from "@/lib/constants";
 import { calculateShiftHours, sumAssignmentHours } from "@/lib/planning/hours";
 import { toDateKey, getDayOfWeek } from "@/lib/planning/dates";
 import { deriveLegacyRestriction } from "@/lib/site-authorization";
-import { loadAgentsAvailabilityForDate } from "@/services/rules/eligibility";
-import type { PlanningSession } from "@/services/ai/planning-session";
+import { loadAgentsAvailabilityForDate, type AgentAvailability } from "@/services/rules/eligibility";
+import { scoreAssignmentFit, teamAverageHours } from "@/services/planning/score-fit";
+import type { AgentWithRules, PlanningSession } from "@/services/ai/planning-session";
 import type {
   AgentCandidateContext,
   PlanningAssistantContext,
   VacationRequirementContext,
 } from "@/services/ai/types";
-import type { PositionRole, ShiftType } from "@prisma/client";
+import type { Assignment, PositionRole, ShiftType } from "@prisma/client";
 
 export type SlotContextInput = {
   planningMonthId: string;
@@ -68,6 +69,7 @@ export async function buildPlanningAssistantContext(
     agents.map((a) => a.id),
     input.date
   );
+  const avgHours = teamAverageHours(monthAssignments, agents.length);
 
   const requirement: VacationRequirementContext = {
     site: { id: site.id, name: site.name },
@@ -79,78 +81,31 @@ export async function buildPlanningAssistantContext(
     shiftHours,
   };
 
-  const candidates: AgentCandidateContext[] = agents.map((agent) => {
-    const agentAssignments = monthAssignments.filter((a) => a.agentId === agent.id);
-    const siteAssignments = agentAssignments.filter((a) => a.siteId === input.siteId);
-    const workedHours = sumAssignmentHours(agentAssignments);
-    const remainingHours =
-      agent.contractHours != null ? Math.max(0, agent.contractHours - workedHours) : null;
+  const candidates: AgentCandidateContext[] = agents.map((agent) =>
+    toCandidate({
+      agent: agent as AgentWithRules,
+      siteId: input.siteId,
+      date: input.date,
+      startTime: input.startTime,
+      endTime: input.endTime,
+      shiftHours,
+      monthAssignments,
+      availability: availabilityMap.get(agent.id)!,
+      siteNameOf: (id) => siteNameMap.get(id) ?? id,
+      teamAvgHours: avgHours,
+      engineFitScore: 0,
+    })
+  );
 
-    const legacy = deriveLegacyRestriction(
-      agent.siteRules.map((r) => ({
-        siteId: r.siteId,
-        ruleType: r.ruleType,
-        allowedDays: r.allowedDays,
-        fixedStartTime: r.fixedStartTime,
-        fixedEndTime: r.fixedEndTime,
-        maxHours: r.maxHours,
-        active: r.active,
-      }))
-    );
-
-    const allowedSiteNames =
-      legacy.allowedSiteIds.length > 0
-        ? legacy.allowedSiteIds.map((id) => siteNameMap.get(id) ?? id)
-        : legacy.siteRestrictionType === "ANY"
-          ? ["Tous sites (polyvalent)"]
-          : [];
-
-    const availability = availabilityMap.get(agent.id)!;
-
-    return {
-      agentId: agent.id,
-      name: formatAgentName(agent.firstName, agent.lastName),
-      contractHours: agent.contractHours,
-      remainingHours,
-      assignmentCount: agentAssignments.length,
-      siteAssignmentCount: siteAssignments.length,
-      allowedSites: allowedSiteNames,
-      siteRules: agent.siteRules.map((r) => ({
-        siteName: r.site.name,
-        ruleType: r.ruleType,
-        allowedDays: r.allowedDays,
-        fixedStartTime: r.fixedStartTime,
-        fixedEndTime: r.fixedEndTime,
-        maxHours: r.maxHours,
-      })),
-      restrictions: {
-        canWorkNight: agent.canWorkNight,
-        dayOnly: agent.dayOnly,
-        nightForbidden: agent.nightForbidden,
-        overtimeAllowed: agent.overtimeAllowed,
-        preferredDays: agent.preferredDays,
-      },
-      availability: {
-        onVacation: availability.vacations.length > 0,
-        onAbsence: availability.absences.length > 0,
-        medicalVisit: availability.medicalVisits.length > 0,
-        unavailable: availability.unavailableDates.length > 0,
-      },
-      previousAssignments: agentAssignments.slice(-8).map((a) => ({
-        date: toDateKey(a.date),
-        siteName: a.site.name,
-        startTime: a.startTime,
-        endTime: a.endTime,
-      })),
-    };
-  });
+  candidates.sort((a, b) => b.engineFitScore - a.engineFitScore);
+  const top = candidates.slice(0, 12);
 
   return {
     requirement: {
       ...requirement,
       date: `${requirement.date} (${getDayOfWeek(input.date)})`,
     },
-    candidates,
+    candidates: top,
     activeRules: activeRules.map((r) => ({
       code: r.code,
       name: r.name,
@@ -169,7 +124,6 @@ async function buildFromSession(
   const shiftHours = calculateShiftHours(input.startTime, input.endTime);
   const dateKey = toDateKey(input.date);
   const availabilityMap = await session.availabilityFor(input.date);
-  const slot = session.toVacationSlot(input);
 
   const requirement: VacationRequirementContext = {
     site: { id: site.id, name: site.name },
@@ -182,86 +136,42 @@ async function buildFromSession(
   };
 
   const eligibleAgents: typeof session.agents = [];
-  for (const agent of session.agents) {
-    const availability = availabilityMap.get(agent.id)!;
-    const blocked =
-      availability.vacations.length > 0 ||
-      availability.absences.length > 0 ||
-      availability.medicalVisits.length > 0 ||
-      availability.unavailableDates.length > 0;
-    if (blocked) continue;
-
-    const { eligible } = await session.evaluateAgent(agent.id, slot);
-    if (eligible) eligibleAgents.push(agent);
+  const engineScores = new Map<string, number>();
+  const ranked = await session.getSuggestions(input);
+  for (const suggestion of ranked) {
+    engineScores.set(suggestion.agentId, suggestion.score);
+    if (suggestion.accepted) {
+      const agent = session.agentsById.get(suggestion.agentId);
+      if (agent) eligibleAgents.push(agent);
+    }
   }
 
-  const agents = eligibleAgents.length > 0 ? eligibleAgents : session.agents;
+  const pool =
+    eligibleAgents.length > 0
+      ? eligibleAgents.slice(0, 12)
+      : ranked
+          .slice(0, 8)
+          .map((s) => session.agentsById.get(s.agentId))
+          .filter((agent): agent is AgentWithRules => Boolean(agent));
+  const avgHours = teamAverageHours(session.monthAssignments, session.agents.length);
 
-  const candidates: AgentCandidateContext[] = agents.map((agent) => {
-    const agentAssignments = session.monthAssignments.filter((a) => a.agentId === agent.id);
-    const siteAssignments = agentAssignments.filter((a) => a.siteId === input.siteId);
-    const workedHours = sumAssignmentHours(agentAssignments);
-    const remainingHours =
-      agent.contractHours != null ? Math.max(0, agent.contractHours - workedHours) : null;
+  const candidates: AgentCandidateContext[] = pool.map((agent) =>
+    toCandidate({
+      agent,
+      siteId: input.siteId,
+      date: input.date,
+      startTime: input.startTime,
+      endTime: input.endTime,
+      shiftHours,
+      monthAssignments: session.monthAssignments,
+      availability: availabilityMap.get(agent.id)!,
+      siteNameOf: (id) => session.siteName(id),
+      teamAvgHours: avgHours,
+      engineFitScore: engineScores.get(agent.id) ?? 0,
+    })
+  );
 
-    const legacy = deriveLegacyRestriction(
-      agent.siteRules.map((r) => ({
-        siteId: r.siteId,
-        ruleType: r.ruleType,
-        allowedDays: r.allowedDays,
-        fixedStartTime: r.fixedStartTime,
-        fixedEndTime: r.fixedEndTime,
-        maxHours: r.maxHours,
-        active: r.active,
-      }))
-    );
-
-    const allowedSiteNames =
-      legacy.allowedSiteIds.length > 0
-        ? legacy.allowedSiteIds.map((id) => session.siteName(id))
-        : legacy.siteRestrictionType === "ANY"
-          ? ["Tous sites (polyvalent)"]
-          : [];
-
-    const availability = availabilityMap.get(agent.id)!;
-
-    return {
-      agentId: agent.id,
-      name: formatAgentName(agent.firstName, agent.lastName),
-      contractHours: agent.contractHours,
-      remainingHours,
-      assignmentCount: agentAssignments.length,
-      siteAssignmentCount: siteAssignments.length,
-      allowedSites: allowedSiteNames,
-      siteRules: agent.siteRules.map((r) => ({
-        siteName: session.siteName(r.siteId),
-        ruleType: r.ruleType,
-        allowedDays: r.allowedDays,
-        fixedStartTime: r.fixedStartTime,
-        fixedEndTime: r.fixedEndTime,
-        maxHours: r.maxHours,
-      })),
-      restrictions: {
-        canWorkNight: agent.canWorkNight,
-        dayOnly: agent.dayOnly,
-        nightForbidden: agent.nightForbidden,
-        overtimeAllowed: agent.overtimeAllowed,
-        preferredDays: agent.preferredDays,
-      },
-      availability: {
-        onVacation: availability.vacations.length > 0,
-        onAbsence: availability.absences.length > 0,
-        medicalVisit: availability.medicalVisits.length > 0,
-        unavailable: availability.unavailableDates.length > 0,
-      },
-      previousAssignments: agentAssignments.slice(-8).map((a) => ({
-        date: toDateKey(a.date),
-        siteName: session.siteName(a.siteId),
-        startTime: a.startTime,
-        endTime: a.endTime,
-      })),
-    };
-  });
+  candidates.sort((a, b) => b.engineFitScore - a.engineFitScore);
 
   return {
     requirement: {
@@ -274,5 +184,96 @@ async function buildFromSession(
       name: r.name,
       description: r.description,
     })),
+  };
+}
+
+function toCandidate(input: {
+  agent: AgentWithRules;
+  siteId: string;
+  date: Date;
+  startTime: string;
+  endTime: string;
+  shiftHours: number;
+  monthAssignments: Assignment[];
+  availability: AgentAvailability;
+  siteNameOf: (siteId: string) => string;
+  teamAvgHours: number;
+  engineFitScore: number;
+}): AgentCandidateContext {
+  const agentAssignments = input.monthAssignments.filter((a) => a.agentId === input.agent.id);
+  const siteAssignments = agentAssignments.filter((a) => a.siteId === input.siteId);
+  const workedHours = sumAssignmentHours(agentAssignments);
+  const remainingHours =
+    input.agent.contractHours != null ? Math.max(0, input.agent.contractHours - workedHours) : null;
+
+  const legacy = deriveLegacyRestriction(
+    input.agent.siteRules.map((r) => ({
+      siteId: r.siteId,
+      ruleType: r.ruleType,
+      allowedDays: r.allowedDays,
+      fixedStartTime: r.fixedStartTime,
+      fixedEndTime: r.fixedEndTime,
+      maxHours: r.maxHours,
+      active: r.active,
+    }))
+  );
+
+  const allowedSiteNames =
+    legacy.allowedSiteIds.length > 0
+      ? legacy.allowedSiteIds.map((id) => input.siteNameOf(id))
+      : legacy.siteRestrictionType === "ANY"
+        ? ["Tous sites (polyvalent)"]
+        : [];
+
+  const fit = scoreAssignmentFit({
+    agent: input.agent,
+    siteId: input.siteId,
+    date: input.date,
+    startTime: input.startTime,
+    endTime: input.endTime,
+    shiftHours: input.shiftHours,
+    monthAssignments: input.monthAssignments,
+    siteHistoryCount: siteAssignments.length,
+    teamAvgHours: input.teamAvgHours,
+    warningCount: 0,
+  });
+
+  return {
+    agentId: input.agent.id,
+    name: formatAgentName(input.agent.firstName, input.agent.lastName),
+    contractHours: input.agent.contractHours,
+    remainingHours,
+    assignmentCount: agentAssignments.length,
+    siteAssignmentCount: siteAssignments.length,
+    allowedSites: allowedSiteNames,
+    siteRules: input.agent.siteRules.map((r) => ({
+      siteName: input.siteNameOf(r.siteId),
+      ruleType: r.ruleType,
+      allowedDays: r.allowedDays,
+      fixedStartTime: r.fixedStartTime,
+      fixedEndTime: r.fixedEndTime,
+      maxHours: r.maxHours,
+    })),
+    restrictions: {
+      canWorkNight: input.agent.canWorkNight,
+      dayOnly: input.agent.dayOnly,
+      nightForbidden: input.agent.nightForbidden,
+      overtimeAllowed: input.agent.overtimeAllowed,
+      preferredDays: input.agent.preferredDays,
+    },
+    availability: {
+      onVacation: input.availability.vacations.length > 0,
+      onAbsence: input.availability.absences.length > 0,
+      medicalVisit: input.availability.medicalVisits.length > 0,
+      unavailable: input.availability.unavailableDates.length > 0,
+    },
+    previousAssignments: agentAssignments.slice(-8).map((a) => ({
+      date: toDateKey(a.date),
+      siteName: input.siteNameOf(a.siteId),
+      startTime: a.startTime,
+      endTime: a.endTime,
+    })),
+    engineFitScore: input.engineFitScore || Math.max(0, Math.min(100, 55 + fit.delta)),
+    rankingSignals: fit.signals,
   };
 }

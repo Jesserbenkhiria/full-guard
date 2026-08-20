@@ -33,7 +33,9 @@ export const agentSchema = z.object({
   allowedSiteIds: z.array(z.string()).default([]),
   active: z.boolean().default(true),
   notes: z.string().optional(),
+  polyvalent: z.boolean().default(false),
 }).superRefine((data, ctx) => {
+  if (data.polyvalent) return;
   if (data.siteRestrictionType !== "ANY" && data.allowedSiteIds.length === 0) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
@@ -41,14 +43,27 @@ export const agentSchema = z.object({
       path: ["allowedSiteIds"],
     });
   }
-  if (data.siteRestrictionType === "ANY" && data.allowedSiteIds.length > 0) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: "Aucun site ne doit être sélectionné pour un agent polyvalent",
-      path: ["allowedSiteIds"],
-    });
-  }
 });
+
+const optionalTimeSchema = z
+  .string()
+  .regex(/^\d{2}:\d{2}$/, "Format: HH:MM")
+  .optional()
+  .or(z.literal(""));
+
+export const agentSiteRuleFormSchema = z.object({
+  siteId: z.string().min(1, "Site requis"),
+  ruleType: z.enum(["ONLY", "PREFERRED", "BLOCKED"]),
+  allowedDays: z.array(dayOfWeekSchema).default([]),
+  fixedStartTime: optionalTimeSchema,
+  fixedEndTime: optionalTimeSchema,
+  maxHours: z.union([z.literal(""), z.coerce.number().int().min(1).max(300)]).optional(),
+  notes: z.string().optional(),
+});
+
+export const agentSiteRulesFormSchema = z.array(agentSiteRuleFormSchema);
+
+export type AgentSiteRuleFormInput = z.infer<typeof agentSiteRuleFormSchema>;
 
 export const siteSchema = z.object({
   name: z.string().min(1, "Site name is required"),

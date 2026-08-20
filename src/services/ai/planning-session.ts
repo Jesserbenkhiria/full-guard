@@ -1,7 +1,7 @@
 import type { Agent, AgentSiteRule, Assignment, PositionRole, ShiftType } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { formatAgentName, POSITION_ROLE_LABELS, resolveIsTeamLeader } from "@/lib/constants";
-import { calculateShiftHours, sumAssignmentHours } from "@/lib/planning/hours";
+import { calculateShiftHours, getRemainingContractHours, sumAssignmentHours } from "@/lib/planning/hours";
 import { parseDateKey, toDateKey } from "@/lib/planning/dates";
 import { assignmentsMatchSlot } from "@/lib/planning/shift-templates";
 import { buildAssignmentWriteData } from "@/lib/prisma/assignment-write";
@@ -11,10 +11,25 @@ import {
   evaluateAgentForSlot,
   loadAgentsAvailabilityForDate,
   mapRuleResultsToReasons,
-  scoreSiteFit,
   type AgentAvailability,
   type VacationSlot,
 } from "@/services/rules/eligibility";
+import {
+  agentBelongsToSitePool,
+  buildDedicatedSiteIds,
+  compareAgentsForSlot,
+  compareSlotFillOrder,
+  getAgentSlotDedication,
+  isAgentAllowedOnDedicatedSite,
+  isPolyvalentAgent,
+  scoreSlotConstraintPriority,
+  type SlotPickContext,
+} from "@/services/planning/constraint-priority";
+import {
+  clampScore,
+  scoreAssignmentFit,
+  teamAverageHours,
+} from "@/services/planning/score-fit";
 import type { AgentSuggestion, SuggestionReasonDetail, UnfilledSlotPreview } from "@/types/planning";
 import type { RuleResult } from "@/types";
 import { fr } from "@/lib/i18n/fr";
@@ -66,6 +81,7 @@ export class PlanningSession {
   readonly activeRules: { code: string; name: string; description: string | null }[];
   readonly engine: RulesEngine;
   monthAssignments: Assignment[];
+  readonly requirementPriorityById: Map<string, number>;
   private availabilityCache = new Map<string, Map<string, AgentAvailability>>();
   private siteHistoryCounts = new Map<string, number>();
 
@@ -75,7 +91,8 @@ export class PlanningSession {
     sites: { id: string; name: string }[],
     monthAssignments: Assignment[],
     engine: RulesEngine,
-    activeRules: { code: string; name: string; description: string | null }[]
+    activeRules: { code: string; name: string; description: string | null }[],
+    requirementPriorityById: Map<string, number>
   ) {
     this.planningMonthId = planningMonthId;
     this.agents = agents;
@@ -84,6 +101,7 @@ export class PlanningSession {
     this.monthAssignments = monthAssignments;
     this.engine = engine;
     this.activeRules = activeRules;
+    this.requirementPriorityById = requirementPriorityById;
 
     for (const a of monthAssignments) {
       const key = `${a.agentId}:${a.siteId}`;
@@ -92,7 +110,7 @@ export class PlanningSession {
   }
 
   static async open(planningMonthId: string): Promise<PlanningSession> {
-    const [agents, sites, monthAssignments, engine, activeRules] = await Promise.all([
+    const [agents, sites, monthAssignments, engine, activeRules, requirements] = await Promise.all([
       prisma.agent.findMany({
         where: { active: true },
         include: { siteRules: { where: { active: true } } },
@@ -106,9 +124,23 @@ export class PlanningSession {
         select: { code: true, name: true, description: true },
         orderBy: { code: "asc" },
       }),
+      prisma.siteRequirement.findMany({
+        where: { active: true },
+        select: { id: true, priority: true },
+      }),
     ]);
 
-    return new PlanningSession(planningMonthId, agents, sites, monthAssignments, engine, activeRules);
+    const requirementPriorityById = new Map(requirements.map((r) => [r.id, r.priority]));
+
+    return new PlanningSession(
+      planningMonthId,
+      agents,
+      sites,
+      monthAssignments,
+      engine,
+      activeRules,
+      requirementPriorityById
+    );
   }
 
   siteName(siteId: string): string {
@@ -172,7 +204,17 @@ export class PlanningSession {
     const shiftHours = calculateShiftHours(slot.startTime, slot.endTime);
     const availability = await this.availabilityFor(slot.date);
     const siteName = this.siteName(slot.siteId);
+    const avgHours = teamAverageHours(this.monthAssignments, this.agents.length);
     const suggestions: AgentSuggestion[] = [];
+    const pickCtx: SlotPickContext = {
+      siteId: slot.siteId,
+      date: slot.date,
+      startTime: slot.startTime,
+      endTime: slot.endTime,
+      shiftType: slot.shiftType,
+      role: input.role,
+    };
+    const dedicatedSiteIds = buildDedicatedSiteIds(this.agents);
 
     for (const agent of this.agents) {
       const agentName = formatAgentName(agent.firstName, agent.lastName);
@@ -186,7 +228,7 @@ export class PlanningSession {
       );
 
       const mapped = mapRuleResultsToReasons(results);
-      let score = eligible ? 70 : 0;
+      let score = eligible ? 55 : 0;
       let accepted = eligible;
 
       if (input.role === "TEAM_LEADER") {
@@ -202,38 +244,40 @@ export class PlanningSession {
         }
       }
 
+      if (
+        accepted &&
+        !isAgentAllowedOnDedicatedSite(agent, slot.siteId, dedicatedSiteIds)
+      ) {
+        accepted = false;
+        score = 0;
+        addReason(
+          mapped.reasons,
+          mapped.reasonDetails,
+          fr.planning.sitePoolRequired,
+          "error"
+        );
+      }
+
       if (accepted) {
-        score += scoreSiteFit(agent, slot.siteId, slot.date);
-
-        const siteRule = agent.siteRules.find((r) => r.siteId === slot.siteId);
-        if (siteRule?.fixedStartTime && siteRule.fixedStartTime === slot.startTime) {
-          score += 8;
-          addReason(mapped.reasons, mapped.reasonDetails, fr.planning.scheduleCompatible, "ok");
-        } else if (siteRule?.fixedStartTime) {
-          score -= 5;
+        const warningCount = mapped.reasonDetails.filter((r) => r.type === "warn").length;
+        const fit = scoreAssignmentFit({
+          agent,
+          siteId: slot.siteId,
+          date: slot.date,
+          startTime: slot.startTime,
+          endTime: slot.endTime,
+          shiftHours,
+          monthAssignments: this.monthAssignments,
+          siteHistoryCount: this.siteHistoryCounts.get(`${agent.id}:${slot.siteId}`) ?? 0,
+          teamAvgHours: avgHours,
+          warningCount,
+        });
+        score += fit.delta;
+        for (const reason of fit.reasons) {
+          addReason(mapped.reasons, mapped.reasonDetails, reason.text, reason.type);
         }
-
-        const agentMonthAssignments = this.monthAssignments.filter((a) => a.agentId === agent.id);
-        const hourCap = siteRule?.maxHours ?? agent.contractHours;
-        if (hourCap) {
-          const projected = sumAssignmentHours(agentMonthAssignments) + shiftHours;
-          if (projected <= hourCap * 0.85) {
-            score += 5;
-            addReason(mapped.reasons, mapped.reasonDetails, "Contrat OK", "ok");
-          } else if (projected <= hourCap) {
-            addReason(
-              mapped.reasons,
-              mapped.reasonDetails,
-              `${fr.planning.nearHourLimit} ${hourCap}h`,
-              "warn"
-            );
-          }
-        }
-
-        const siteCount = this.siteHistoryCounts.get(`${agent.id}:${slot.siteId}`) ?? 0;
-        if (siteCount >= 3) {
-          score += 4;
-          addReason(mapped.reasons, mapped.reasonDetails, "Connaît bien ce site", "ok");
+        if (getAgentSlotDedication(agent, pickCtx) >= 100) {
+          addReason(mapped.reasons, mapped.reasonDetails, fr.planning.dedicatedAgent, "ok");
         }
       }
 
@@ -241,30 +285,57 @@ export class PlanningSession {
         addReason(mapped.reasons, mapped.reasonDetails, "Non éligible", "error");
       }
 
+      const agentMonthAssignments = this.monthAssignments.filter(
+        (a) => a.agentId === agent.id && a.id !== slot.excludeAssignmentId
+      );
+      const workedHours = sumAssignmentHours(agentMonthAssignments);
+      const remainingHours = getRemainingContractHours(agent.contractHours, workedHours);
+
       suggestions.push({
         agentId: agent.id,
         agentName,
-        score: Math.max(0, Math.min(100, score)),
+        score: clampScore(score),
         accepted,
         reasons: mapped.reasons,
         reasonDetails: mapped.reasonDetails,
+        contractHours: agent.contractHours,
+        workedHours,
+        remainingHours,
+        shiftHours,
       });
     }
 
-    return suggestions.sort((a, b) => {
-      if (a.accepted !== b.accepted) return a.accepted ? -1 : 1;
-      return b.score - a.score;
-    });
+    return suggestions.sort((a, b) =>
+      compareAgentsForSlot(a, b, this.agentsById, pickCtx)
+    );
   }
 
-  /** Rules-engine pick — no OpenAI, uses in-memory state only. */
+  /** Rules-engine pick — pool agents first on dedicated sites, polyvalent last. */
   async pickBestAgent(input: SessionSlotInput): Promise<PickedAgent | null> {
     const suggestions = await this.getSuggestions(input);
-    const top = suggestions.find((s) => s.accepted);
+    const dedicatedSiteIds = buildDedicatedSiteIds(this.agents);
+    const isDedicatedSite = dedicatedSiteIds.has(input.siteId);
+
+    let candidates = suggestions.filter((s) => s.accepted);
+    if (isDedicatedSite) {
+      const poolAgents = candidates.filter((s) =>
+        agentBelongsToSitePool(this.agentsById.get(s.agentId)!, input.siteId)
+      );
+      if (poolAgents.length > 0) {
+        candidates = poolAgents;
+      } else {
+        candidates = candidates.filter((s) =>
+          isPolyvalentAgent(this.agentsById.get(s.agentId)!)
+        );
+      }
+    }
+
+    const top = candidates[0];
     if (!top) return null;
 
     const slot = this.toVacationSlot(input);
-    const { results } = await this.evaluateAgent(top.agentId, slot);
+    const { eligible, results } = await this.evaluateAgent(top.agentId, slot);
+    if (!eligible) return null;
 
     return {
       agentId: top.agentId,
@@ -310,7 +381,122 @@ export async function fetchBulkSlotSuggestions(
     results.push({ ...slot, suggestions });
   }
 
-  return results;
+  results.sort((a, b) => {
+    const aAccepted = a.suggestions.filter((s) => s.accepted);
+    const bAccepted = b.suggestions.filter((s) => s.accepted);
+    const aIds = new Set(aAccepted.map((s) => s.agentId));
+    const bIds = new Set(bAccepted.map((s) => s.agentId));
+    const aCtx: SlotPickContext = {
+      siteId: a.siteId,
+      date: a.date,
+      startTime: a.startTime,
+      endTime: a.endTime,
+      shiftType: a.shiftType,
+      role: a.role,
+    };
+    const bCtx: SlotPickContext = {
+      siteId: b.siteId,
+      date: b.date,
+      startTime: b.startTime,
+      endTime: b.endTime,
+      shiftType: b.shiftType,
+      role: b.role,
+    };
+    const aConstraint = scoreSlotConstraintPriority(session.agents, aIds, aCtx);
+    const bConstraint = scoreSlotConstraintPriority(session.agents, bIds, bCtx);
+
+    return compareSlotFillOrder(
+      {
+        date: a.date,
+        startTime: a.startTime,
+        endTime: a.endTime,
+        shiftType: a.shiftType,
+        role: a.role,
+        requirementPriority: session.requirementPriorityById.get(a.requirementId) ?? 0,
+        eligibleCount: aAccepted.length,
+        ...aConstraint,
+      },
+      {
+        date: b.date,
+        startTime: b.startTime,
+        endTime: b.endTime,
+        shiftType: b.shiftType,
+        role: b.role,
+        requirementPriority: session.requirementPriorityById.get(b.requirementId) ?? 0,
+        eligibleCount: bAccepted.length,
+        ...bConstraint,
+      }
+    );
+  });
+
+  return results.map((row) => ({
+    ...row,
+    suggestions: row.suggestions.filter((s) => s.accepted),
+  }));
+}
+
+async function orderSlotsForFill(
+  session: PlanningSession,
+  slots: UnfilledSlotPreview[]
+): Promise<UnfilledSlotPreview[]> {
+  const scored = await Promise.all(
+    slots.map(async (slot) => {
+      const suggestions = await session.getSuggestions({
+        siteId: slot.siteId,
+        date: slot.date,
+        shiftType: slot.shiftType,
+        startTime: slot.startTime,
+        endTime: slot.endTime,
+        role: slot.role,
+      });
+      const accepted = suggestions.filter((s) => s.accepted);
+      const acceptedIds = new Set(accepted.map((s) => s.agentId));
+      const pickCtx: SlotPickContext = {
+        siteId: slot.siteId,
+        date: slot.date,
+        startTime: slot.startTime,
+        endTime: slot.endTime,
+        shiftType: slot.shiftType,
+        role: slot.role,
+      };
+      const constraint = scoreSlotConstraintPriority(session.agents, acceptedIds, pickCtx);
+
+      return {
+        slot,
+        eligibleCount: accepted.length,
+        requirementPriority: session.requirementPriorityById.get(slot.requirementId) ?? 0,
+        ...constraint,
+      };
+    })
+  );
+
+  scored.sort((a, b) =>
+    compareSlotFillOrder({
+      date: a.slot.date,
+      startTime: a.slot.startTime,
+      endTime: a.slot.endTime,
+      shiftType: a.slot.shiftType,
+      role: a.slot.role,
+      requirementPriority: a.requirementPriority,
+      eligibleCount: a.eligibleCount,
+      dedicatedEligibleCount: a.dedicatedEligibleCount,
+      topDedication: a.topDedication,
+      slotConstraintPriority: a.slotConstraintPriority,
+    }, {
+      date: b.slot.date,
+      startTime: b.slot.startTime,
+      endTime: b.slot.endTime,
+      shiftType: b.slot.shiftType,
+      role: b.slot.role,
+      requirementPriority: b.requirementPriority,
+      eligibleCount: b.eligibleCount,
+      dedicatedEligibleCount: b.dedicatedEligibleCount,
+      topDedication: b.topDedication,
+      slotConstraintPriority: b.slotConstraintPriority,
+    })
+  );
+
+  return scored.map((s) => s.slot);
 }
 
 export async function applyBulkFillWithSession(
@@ -319,10 +505,10 @@ export async function applyBulkFillWithSession(
   options?: { limit?: number; aiGenerated?: boolean }
 ): Promise<BulkFillResult> {
   const limit = options?.limit ?? 40;
-  const batch = slots.slice(0, limit);
   const result: BulkFillResult = { applied: 0, skipped: 0, errors: [] };
 
   const session = await PlanningSession.open(planningMonthId);
+  const batch = await orderSlotsForFill(session, slots.slice(0, limit));
   const createdIds: string[] = [];
 
   for (const slot of batch) {
@@ -348,7 +534,7 @@ export async function applyBulkFillWithSession(
 
       const hours = calculateShiftHours(slot.startTime, slot.endTime);
       const aiExplanation = options?.aiGenerated
-        ? `${picked.agentName} — sélection automatique (moteur de règles)`
+        ? `${picked.agentName} — meilleure affectation (score ${picked.score})`
         : undefined;
 
       const assignment = await prisma.assignment.create({

@@ -12,44 +12,138 @@ import {
   success,
   type ActionResult,
 } from "@/lib/actions";
+import type { AgentSiteRuleType, SiteRestrictionType } from "@prisma/client";
 import {
   absenceSchema,
   agentSchema,
+  agentSiteRulesFormSchema,
+  type AgentSiteRuleFormInput,
   medicalVisitSchema,
   unavailableDateSchema,
   vacationSchema,
 } from "@/lib/validations";
 
+function parseSiteRulesJson(formData: FormData): AgentSiteRuleFormInput[] {
+  const raw = formData.get("siteRulesJson");
+  if (typeof raw !== "string" || !raw.trim()) return [];
+  const parsed = JSON.parse(raw) as unknown;
+  return agentSiteRulesFormSchema.parse(parsed);
+}
+
+function normalizeSiteRule(rule: AgentSiteRuleFormInput) {
+  return {
+    siteId: rule.siteId,
+    ruleType: rule.ruleType as AgentSiteRuleType,
+    allowedDays: rule.allowedDays,
+    fixedStartTime: rule.fixedStartTime?.trim() || null,
+    fixedEndTime: rule.fixedEndTime?.trim() || null,
+    maxHours:
+      rule.maxHours === "" || rule.maxHours == null ? null : Number(rule.maxHours),
+    notes: rule.notes?.trim() || null,
+    active: true,
+  };
+}
+
+function deriveSiteAuthorization(
+  polyvalent: boolean,
+  siteRules: AgentSiteRuleFormInput[]
+): { siteRestrictionType: SiteRestrictionType; allowedSiteIds: string[] } {
+  if (polyvalent || siteRules.length === 0) {
+    return { siteRestrictionType: "ANY", allowedSiteIds: [] };
+  }
+
+  const allowedSiteIds = [...new Set(siteRules.map((rule) => rule.siteId))];
+  const hasOnly = siteRules.some((rule) => rule.ruleType === "ONLY");
+  return {
+    siteRestrictionType: hasOnly ? "ONLY" : "PREFERRED",
+    allowedSiteIds,
+  };
+}
+
+async function syncAgentSiteRules(agentId: string, siteRules: AgentSiteRuleFormInput[]) {
+  const normalized = siteRules.map(normalizeSiteRule);
+  const siteIds = normalized.map((rule) => rule.siteId);
+
+  if (siteIds.length === 0) {
+    await prisma.agentSiteRule.deleteMany({ where: { agentId } });
+    return;
+  }
+
+  await prisma.agentSiteRule.deleteMany({
+    where: {
+      agentId,
+      siteId: { notIn: siteIds },
+    },
+  });
+
+  for (const rule of normalized) {
+    await prisma.agentSiteRule.upsert({
+      where: {
+        agentId_siteId: {
+          agentId,
+          siteId: rule.siteId,
+        },
+      },
+      create: {
+        agentId,
+        ...rule,
+      },
+      update: rule,
+    });
+  }
+}
+
 function parseAgentFormData(formData: FormData) {
   const dayOnly = getBoolean(formData, "dayOnly");
   const nightForbidden = getBoolean(formData, "nightForbidden");
+  const polyvalent = getBoolean(formData, "polyvalent");
+  const siteRules = parseSiteRulesJson(formData);
+  const { siteRestrictionType, allowedSiteIds } = deriveSiteAuthorization(polyvalent, siteRules);
 
-  return agentSchema.parse({
-    firstName: getString(formData, "firstName"),
-    lastName: getString(formData, "lastName"),
-    phone: getOptionalString(formData, "phone"),
-    email: getString(formData, "email"),
-    contractHours: getString(formData, "contractHours") || undefined,
-    overtimeAllowed: getBoolean(formData, "overtimeAllowed"),
-    canWorkNight: dayOnly || nightForbidden ? false : getBoolean(formData, "canWorkNight"),
-    maxVacationsPerMonth: getString(formData, "maxVacationsPerMonth") || undefined,
-    preferredDays: getStringArray(formData, "preferredDays"),
-    dayOnly,
-    nightForbidden,
-    isTeamLeader: getBoolean(formData, "isTeamLeader"),
-    siteRestrictionType: getString(formData, "siteRestrictionType") || "ANY",
-    allowedSiteIds: getStringArray(formData, "allowedSiteIds"),
-    active: getBoolean(formData, "active"),
-    notes: getOptionalString(formData, "notes"),
-  });
+  if (!polyvalent && siteRules.length === 0) {
+    throw new Error("Ajoutez au moins un profil site ou activez le mode polyvalent");
+  }
+
+  const duplicateSites = siteRules.map((rule) => rule.siteId);
+  if (new Set(duplicateSites).size !== duplicateSites.length) {
+    throw new Error("Chaque site ne peut apparaître qu'une seule fois dans les profils");
+  }
+
+  const parsed = agentSchema.parse({
+      firstName: getString(formData, "firstName"),
+      lastName: getString(formData, "lastName"),
+      phone: getOptionalString(formData, "phone"),
+      email: getString(formData, "email"),
+      contractHours: getString(formData, "contractHours") || undefined,
+      overtimeAllowed: getBoolean(formData, "overtimeAllowed"),
+      canWorkNight: dayOnly || nightForbidden ? false : getBoolean(formData, "canWorkNight"),
+      maxVacationsPerMonth: getString(formData, "maxVacationsPerMonth") || undefined,
+      preferredDays: getStringArray(formData, "preferredDays"),
+      dayOnly,
+      nightForbidden,
+      isTeamLeader: getBoolean(formData, "isTeamLeader"),
+      siteRestrictionType,
+      allowedSiteIds,
+      active: getBoolean(formData, "active"),
+      notes: getOptionalString(formData, "notes"),
+      polyvalent,
+    });
+  const { polyvalent: _polyvalent, ...agentData } = parsed;
+
+  return {
+    agentData,
+    siteRules,
+  };
 }
 
 export async function createAgent(formData: FormData): Promise<ActionResult<{ id: string }>> {
   try {
-    const data = parseAgentFormData(formData);
-    const agent = await prisma.agent.create({ data });
+    const { agentData, siteRules } = parseAgentFormData(formData);
+    const agent = await prisma.agent.create({ data: agentData });
+    await syncAgentSiteRules(agent.id, siteRules);
     revalidatePath("/agents");
     revalidatePath("/dashboard");
+    revalidatePath("/planning");
     return success({ id: agent.id });
   } catch (err) {
     if (err && typeof err === "object" && "issues" in err) {
@@ -65,11 +159,13 @@ export async function updateAgent(
   formData: FormData
 ): Promise<ActionResult<{ id: string }>> {
   try {
-    const data = parseAgentFormData(formData);
-    const agent = await prisma.agent.update({ where: { id }, data });
+    const { agentData, siteRules } = parseAgentFormData(formData);
+    const agent = await prisma.agent.update({ where: { id }, data: agentData });
+    await syncAgentSiteRules(agent.id, siteRules);
     revalidatePath("/agents");
     revalidatePath(`/agents/${id}`);
     revalidatePath("/dashboard");
+    revalidatePath("/planning");
     return success({ id: agent.id });
   } catch (err) {
     if (err && typeof err === "object" && "issues" in err) {

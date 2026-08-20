@@ -256,7 +256,7 @@ export function scoreSiteFit(
   }
 
   if (agent.siteRestrictionType === "ANY" && !siteRule) {
-    bonus -= 15;
+    bonus -= 30;
   }
 
   return bonus;
