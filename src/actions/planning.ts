@@ -11,6 +11,7 @@ import {
   type ActionResult,
 } from "@/lib/actions";
 import { calculateShiftHours } from "@/lib/planning/hours";
+import { parseDateKey } from "@/lib/planning/dates";
 import { applyBulkSuggestions, type BulkFillResult } from "@/services/planning/auto-fill";
 import { fetchBulkSlotSuggestions } from "@/services/ai/planning-session";
 import { getAgentSuggestions } from "@/services/planning/suggestions";
@@ -18,9 +19,14 @@ import {
   revalidateAfterChange,
   syncAgentContractHoursAlert,
   validateAssignment,
+  hasHardWriteConflict,
   type ValidationOutcome,
 } from "@/services/rules/validate-assignment";
 import { validatePlanningGate, type SiteExportCheck } from "@/services/rules/validate-planning-gate";
+import {
+  invalidateSitePlanningStatus,
+  validateSitePlanningGate,
+} from "@/services/rules/validate-site-planning-gate";
 import { validateMonthForExport, validateSiteForExport } from "@/services/rules/export-check";
 import { getOrCreatePlanningMonth } from "@/services/planning/queries";
 import { assignmentSchema } from "@/lib/validations";
@@ -74,7 +80,7 @@ export async function createAssignment(formData: FormData): Promise<
 
     const validation = await revalidateAfterChange(assignment.id);
 
-    if (validation.status === "error") {
+    if (hasHardWriteConflict(validation.results)) {
       await prisma.assignment.delete({ where: { id: assignment.id } });
       const messages = validation.results
         .filter((r) => !r.valid && r.severity === "ERROR")
@@ -128,7 +134,7 @@ export async function updateAssignment(
 
     const validation = await revalidateAfterChange(id);
 
-    if (validation.status === "error") {
+    if (hasHardWriteConflict(validation.results)) {
       await prisma.assignment.update({
         where: { id },
         data: buildAssignmentWriteData({
@@ -168,6 +174,58 @@ export async function updateAssignment(
   }
 }
 
+export async function deleteSiteAssignments(
+  planningMonthId: string,
+  siteId: string
+): Promise<ActionResult<{ deletedCount: number }>> {
+  try {
+    const assignments = await prisma.assignment.findMany({
+      where: { planningMonthId, siteId },
+      select: { id: true, agentId: true },
+    });
+
+    if (assignments.length === 0) {
+      return success({ deletedCount: 0 });
+    }
+
+    const assignmentIds = assignments.map((a) => a.id);
+    const agentIds = [...new Set(assignments.map((a) => a.agentId))];
+
+    await prisma.alert.deleteMany({
+      where: {
+        OR: [
+          { assignmentId: { in: assignmentIds } },
+          { planningMonthId, siteId },
+        ],
+      },
+    });
+
+    await prisma.assignment.deleteMany({
+      where: { planningMonthId, siteId },
+    });
+
+    for (const agentId of agentIds) {
+      const remaining = await prisma.assignment.findMany({
+        where: { planningMonthId, agentId },
+        select: { id: true },
+      });
+      for (const { id } of remaining) {
+        await validateAssignment(id);
+      }
+      await syncAgentContractHoursAlert(agentId, planningMonthId);
+    }
+
+    await invalidateSitePlanningStatus(planningMonthId, siteId);
+
+    revalidatePlanning();
+    return success({ deletedCount: assignments.length });
+  } catch (err) {
+    return failure(
+      err instanceof Error ? err.message : "Erreur lors de la suppression des affectations"
+    );
+  }
+}
+
 export async function deleteAssignment(
   id: string
 ): Promise<ActionResult<{ validation?: ValidationOutcome }>> {
@@ -191,10 +249,47 @@ export async function deleteAssignment(
       await validateAssignment(other.id);
     }
 
+    await invalidateSitePlanningStatus(existing.planningMonthId, existing.siteId);
+
     revalidatePlanning();
     return success({});
   } catch (err) {
     return failure(err instanceof Error ? err.message : "Erreur lors de la suppression");
+  }
+}
+
+export async function runSitePlanningValidation(
+  planningMonthId: string,
+  siteId: string
+): Promise<
+  ActionResult<{
+    errorCount: number;
+    warningCount: number;
+    validCount: number;
+    validated: boolean;
+    blockingMessages: string[];
+  }>
+> {
+  try {
+    const result = await validateSitePlanningGate(planningMonthId, siteId);
+    revalidatePlanning();
+
+    if (!result.canValidate) {
+      return failure(
+        result.blockingMessages.join(" · ") ||
+          "Validation impossible : des erreurs bloquantes subsistent"
+      );
+    }
+
+    return success({
+      errorCount: result.errorCount,
+      warningCount: result.warningCount,
+      validCount: result.validCount,
+      validated: true,
+      blockingMessages: [],
+    });
+  } catch (err) {
+    return failure(err instanceof Error ? err.message : "Erreur de validation");
   }
 }
 
@@ -272,7 +367,9 @@ export async function fetchBulkSlotPreviewsAction(
   slots: UnfilledSlotPreview[],
   limit = 12
 ): Promise<(UnfilledSlotPreview & { suggestions: AgentSuggestion[] })[]> {
-  return fetchBulkSlotSuggestions(planningMonthId, slots.slice(0, limit));
+  return fetchBulkSlotSuggestions(planningMonthId, slots.slice(0, limit), {
+    simulateSequential: true,
+  });
 }
 
 export async function applyBulkSuggestionsAction(
@@ -305,7 +402,7 @@ export async function moveAssignmentToSlot(
     const assignment = await prisma.assignment.findUnique({ where: { id: assignmentId } });
     if (!assignment) return failure("Affectation introuvable");
 
-    const slotDate = new Date(slot.date);
+    const slotDate = parseDateKey(slot.date);
     const conflicting = await prisma.assignment.findFirst({
       where: {
         planningMonthId: slot.planningMonthId,

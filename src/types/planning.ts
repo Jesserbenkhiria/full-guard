@@ -62,6 +62,8 @@ export type SitePlanningGroup = {
   habitualAgents: string[];
   teamLeaderHints: string[];
   shiftRows: ShiftPlanningRow[];
+  validationStatus: PlanningStatus;
+  validatedAt: string | null;
 };
 
 export type ShiftPlanningRow = {
@@ -143,6 +145,8 @@ export type UnfilledSlotPreview = {
   endTime: string;
   shiftType: ShiftType;
   role: PositionRole;
+  slotIndex: number;
+  requiredAgents: number;
 };
 
 export type PlanningData = {

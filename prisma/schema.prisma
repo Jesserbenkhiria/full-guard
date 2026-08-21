@@ -135,10 +135,11 @@ model Site {
   notes    String?
   shiftDurationHours Int?
 
-  requirements SiteRequirement[]
-  assignments  Assignment[]
-  alerts       Alert[]
-  agentRules   AgentSiteRule[]
+  requirements    SiteRequirement[]
+  assignments     Assignment[]
+  alerts          Alert[]
+  agentRules      AgentSiteRule[]
+  sitePlannings   SitePlanningMonth[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -194,17 +195,36 @@ model PlanningMonth {
   year        Int
   month       Int
   status      PlanningStatus @default(DRAFT)
+  isReference Boolean        @default(false)
   validatedAt DateTime?
   notes       String?
 
-  assignments Assignment[]
-  alerts      Alert[]
-  documents   Document[]
+  assignments    Assignment[]
+  alerts         Alert[]
+  documents      Document[]
+  sitePlannings  SitePlanningMonth[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@unique([year, month])
+}
+
+model SitePlanningMonth {
+  id              String         @id @default(auto()) @map("_id") @db.ObjectId
+  planningMonthId String         @db.ObjectId
+  planningMonth   PlanningMonth  @relation(fields: [planningMonthId], references: [id], onDelete: Cascade)
+  siteId          String         @db.ObjectId
+  site            Site           @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  status          PlanningStatus @default(DRAFT)
+  validatedAt     DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([planningMonthId, siteId])
+  @@index([planningMonthId])
+  @@index([siteId])
 }
 
 model Assignment {

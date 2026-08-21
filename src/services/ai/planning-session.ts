@@ -1,6 +1,6 @@
 import type { Agent, AgentSiteRule, Assignment, PositionRole, ShiftType } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import { formatAgentName, POSITION_ROLE_LABELS, resolveIsTeamLeader } from "@/lib/constants";
+import { formatAgentName } from "@/lib/constants";
 import { calculateShiftHours, getRemainingContractHours, sumAssignmentHours } from "@/lib/planning/hours";
 import { parseDateKey, toDateKey } from "@/lib/planning/dates";
 import { assignmentsMatchSlot } from "@/lib/planning/shift-templates";
@@ -15,21 +15,25 @@ import {
   type VacationSlot,
 } from "@/services/rules/eligibility";
 import {
-  agentBelongsToSitePool,
   buildDedicatedSiteIds,
   compareAgentsForSlot,
-  compareSlotFillOrder,
+  compareSequentialSlotOrder,
+  filterDedicatedSiteCandidates,
   getAgentSlotDedication,
   isAgentAllowedOnDedicatedSite,
-  isPolyvalentAgent,
-  scoreSlotConstraintPriority,
   type SlotPickContext,
 } from "@/services/planning/constraint-priority";
+import { isOpenAiConfigured } from "@/services/ai/openai-client";
+import { revalidateAfterChange, hasHardWriteConflict } from "@/services/rules/validate-assignment";
 import {
   clampScore,
   scoreAssignmentFit,
   teamAverageHours,
 } from "@/services/planning/score-fit";
+import {
+  loadReferenceStatsFromDb,
+  type ReferenceStatsBundle,
+} from "@/services/planning/reference-stats";
 import type { AgentSuggestion, SuggestionReasonDetail, UnfilledSlotPreview } from "@/types/planning";
 import type { RuleResult } from "@/types";
 import { fr } from "@/lib/i18n/fr";
@@ -82,6 +86,7 @@ export class PlanningSession {
   readonly engine: RulesEngine;
   monthAssignments: Assignment[];
   readonly requirementPriorityById: Map<string, number>;
+  readonly referenceStats: ReferenceStatsBundle | null;
   private availabilityCache = new Map<string, Map<string, AgentAvailability>>();
   private siteHistoryCounts = new Map<string, number>();
 
@@ -92,7 +97,8 @@ export class PlanningSession {
     monthAssignments: Assignment[],
     engine: RulesEngine,
     activeRules: { code: string; name: string; description: string | null }[],
-    requirementPriorityById: Map<string, number>
+    requirementPriorityById: Map<string, number>,
+    referenceStats: ReferenceStatsBundle | null
   ) {
     this.planningMonthId = planningMonthId;
     this.agents = agents;
@@ -102,6 +108,7 @@ export class PlanningSession {
     this.engine = engine;
     this.activeRules = activeRules;
     this.requirementPriorityById = requirementPriorityById;
+    this.referenceStats = referenceStats;
 
     for (const a of monthAssignments) {
       const key = `${a.agentId}:${a.siteId}`;
@@ -110,7 +117,8 @@ export class PlanningSession {
   }
 
   static async open(planningMonthId: string): Promise<PlanningSession> {
-    const [agents, sites, monthAssignments, engine, activeRules, requirements] = await Promise.all([
+    const [agents, sites, monthAssignments, engine, activeRules, requirements, referenceStats] =
+      await Promise.all([
       prisma.agent.findMany({
         where: { active: true },
         include: { siteRules: { where: { active: true } } },
@@ -128,6 +136,7 @@ export class PlanningSession {
         where: { active: true },
         select: { id: true, priority: true },
       }),
+      loadReferenceStatsFromDb(prisma),
     ]);
 
     const requirementPriorityById = new Map(requirements.map((r) => [r.id, r.priority]));
@@ -139,7 +148,8 @@ export class PlanningSession {
       monthAssignments,
       engine,
       activeRules,
-      requirementPriorityById
+      requirementPriorityById,
+      referenceStats
     );
   }
 
@@ -231,22 +241,9 @@ export class PlanningSession {
       let score = eligible ? 55 : 0;
       let accepted = eligible;
 
-      if (input.role === "TEAM_LEADER") {
-        if (!resolveIsTeamLeader(agent)) {
-          accepted = false;
-          score = 0;
-          addReason(
-            mapped.reasons,
-            mapped.reasonDetails,
-            `Poste ${POSITION_ROLE_LABELS.TEAM_LEADER} requis`,
-            "error"
-          );
-        }
-      }
-
       if (
         accepted &&
-        !isAgentAllowedOnDedicatedSite(agent, slot.siteId, dedicatedSiteIds)
+        !isAgentAllowedOnDedicatedSite(agent, slot.siteId, dedicatedSiteIds, slot.date)
       ) {
         accepted = false;
         score = 0;
@@ -267,10 +264,12 @@ export class PlanningSession {
           startTime: slot.startTime,
           endTime: slot.endTime,
           shiftHours,
+          shiftType: slot.shiftType,
           monthAssignments: this.monthAssignments,
           siteHistoryCount: this.siteHistoryCounts.get(`${agent.id}:${slot.siteId}`) ?? 0,
           teamAvgHours: avgHours,
           warningCount,
+          referenceStats: this.referenceStats,
         });
         score += fit.delta;
         for (const reason of fit.reasons) {
@@ -310,25 +309,29 @@ export class PlanningSession {
     );
   }
 
-  /** Rules-engine pick — pool agents first on dedicated sites, polyvalent last. */
+  /** Rules-engine pick — dedicated site tiers (LE DOUZE: Kaid/Mbodji/Djonka then Evina/Djedia). */
   async pickBestAgent(input: SessionSlotInput): Promise<PickedAgent | null> {
     const suggestions = await this.getSuggestions(input);
     const dedicatedSiteIds = buildDedicatedSiteIds(this.agents);
     const isDedicatedSite = dedicatedSiteIds.has(input.siteId);
+    const pickCtx: SlotPickContext = {
+      siteId: input.siteId,
+      date: input.date,
+      startTime: input.startTime,
+      endTime: input.endTime,
+      shiftType: input.shiftType,
+      role: input.role,
+    };
 
     let candidates = suggestions.filter((s) => s.accepted);
+
     if (isDedicatedSite) {
-      const poolAgents = candidates.filter((s) =>
-        agentBelongsToSitePool(this.agentsById.get(s.agentId)!, input.siteId)
-      );
-      if (poolAgents.length > 0) {
-        candidates = poolAgents;
-      } else {
-        candidates = candidates.filter((s) =>
-          isPolyvalentAgent(this.agentsById.get(s.agentId)!)
-        );
-      }
+      candidates = filterDedicatedSiteCandidates(candidates, this.agentsById, pickCtx);
     }
+
+    candidates.sort((a, b) =>
+      compareAgentsForSlot(a, b, this.agentsById, pickCtx)
+    );
 
     const top = candidates[0];
     if (!top) return null;
@@ -352,164 +355,259 @@ export class PlanningSession {
     this.siteHistoryCounts.set(key, (this.siteHistoryCounts.get(key) ?? 0) + 1);
   }
 
+  untrackAssignment(assignmentId: string) {
+    const index = this.monthAssignments.findIndex((a) => a.id === assignmentId);
+    if (index < 0) return;
+
+    const removed = this.monthAssignments.splice(index, 1)[0];
+    this.availabilityCache.delete(toDateKey(removed.date));
+    const key = `${removed.agentId}:${removed.siteId}`;
+    const count = this.siteHistoryCounts.get(key) ?? 0;
+    if (count <= 1) this.siteHistoryCounts.delete(key);
+    else this.siteHistoryCounts.set(key, count - 1);
+  }
+
+  /** Simulate an assignment in-memory (preview) without persisting. */
+  trackHypotheticalAssignment(slot: UnfilledSlotPreview, agentId: string) {
+    this.trackAssignment({
+      id: `preview-${slot.slotId}`,
+      planningMonthId: this.planningMonthId,
+      agentId,
+      siteId: slot.siteId,
+      requirementId: slot.requirementId,
+      date: parseDateKey(slot.date),
+      shiftType: slot.shiftType,
+      role: slot.role,
+      startTime: slot.startTime,
+      endTime: slot.endTime,
+      hours: calculateShiftHours(slot.startTime, slot.endTime),
+      notes: null,
+      aiGenerated: false,
+      aiConfidence: null,
+      aiExplanation: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+  }
+
+  async getRankedCandidates(
+    input: SessionSlotInput,
+    useAi: boolean
+  ): Promise<AgentSuggestion[]> {
+    const rulesCandidates = async () =>
+      this.filterDedicatedCandidates(
+        input,
+        (await this.getSuggestions(input)).filter((s) => s.accepted)
+      );
+
+    if (useAi && isOpenAiConfigured()) {
+      const { getAiPlanningSuggestions } = await import("@/services/ai/planningAssistant");
+      const suggestions = await getAiPlanningSuggestions(
+        {
+          planningMonthId: this.planningMonthId,
+          siteId: input.siteId,
+          date: this.normalizeDate(input.date),
+          shiftType: input.shiftType,
+          startTime: input.startTime,
+          endTime: input.endTime,
+          role: input.role,
+        },
+        this
+      );
+      const filtered = this.filterDedicatedCandidates(
+        input,
+        suggestions.filter((s) => s.accepted)
+      );
+      if (filtered.length > 0) return filtered;
+    }
+
+    return rulesCandidates();
+  }
+
+  private filterDedicatedCandidates(
+    input: SessionSlotInput,
+    candidates: AgentSuggestion[]
+  ): AgentSuggestion[] {
+    const dedicatedSiteIds = buildDedicatedSiteIds(this.agents);
+    if (!dedicatedSiteIds.has(input.siteId)) return candidates;
+
+    const pickCtx: SlotPickContext = {
+      siteId: input.siteId,
+      date: input.date,
+      startTime: input.startTime,
+      endTime: input.endTime,
+      shiftType: input.shiftType,
+      role: input.role,
+    };
+
+    return filterDedicatedSiteCandidates(candidates, this.agentsById, pickCtx);
+  }
+
   isSlotFilled(slot: UnfilledSlotPreview): boolean {
-    return this.monthAssignments.some((a) =>
+    const matching = this.monthAssignments.filter((a) =>
       assignmentsMatchSlot(
         { ...a, date: toDateKey(a.date) },
-        slot
+        {
+          siteId: slot.siteId,
+          date: slot.date,
+          startTime: slot.startTime,
+          endTime: slot.endTime,
+          requirementId: slot.requirementId,
+          role: slot.role,
+        }
       )
     );
+    return matching.length > slot.slotIndex;
   }
+}
+
+function orderSlotsSequentially(slots: UnfilledSlotPreview[]): UnfilledSlotPreview[] {
+  return [...slots].sort(compareSequentialSlotOrder);
+}
+
+function slotToSessionInput(slot: UnfilledSlotPreview): SessionSlotInput {
+  return {
+    siteId: slot.siteId,
+    date: slot.date,
+    shiftType: slot.shiftType,
+    startTime: slot.startTime,
+    endTime: slot.endTime,
+    role: slot.role,
+  };
+}
+
+async function tryPersistAssignment(
+  session: PlanningSession,
+  slot: UnfilledSlotPreview,
+  candidate: AgentSuggestion,
+  options: { aiGenerated?: boolean }
+): Promise<{ ok: true; assignmentId: string } | { ok: false; error: string }> {
+  const hours = calculateShiftHours(slot.startTime, slot.endTime);
+  const aiExplanation = options.aiGenerated
+    ? candidate.aiExplanation ??
+      `${candidate.agentName} — ${candidate.reasons.slice(0, 3).join(" · ")}`
+    : undefined;
+
+  const assignment = await prisma.assignment.create({
+    data: {
+      ...buildAssignmentWriteData({
+        planningMonthId: session.planningMonthId,
+        agentId: candidate.agentId,
+        siteId: slot.siteId,
+        requirementId: slot.requirementId,
+        date: parseDateKey(slot.date),
+        shiftType: slot.shiftType,
+        role: slot.role,
+        startTime: slot.startTime,
+        endTime: slot.endTime,
+        hours,
+      }),
+      aiGenerated: options.aiGenerated ?? false,
+      aiConfidence: options.aiGenerated ? (candidate.aiConfidence ?? candidate.score) : null,
+      aiExplanation: aiExplanation ?? null,
+    },
+  });
+
+  const validation = await revalidateAfterChange(assignment.id);
+
+  if (hasHardWriteConflict(validation.results)) {
+    await prisma.assignment.delete({ where: { id: assignment.id } });
+    const message =
+      validation.results
+        .filter((r) => !r.valid && r.severity === "ERROR")
+        .map((r) => r.message)
+        .filter(Boolean)
+        .join(" · ") || "Rejeté par le moteur de règles";
+    return { ok: false, error: message };
+  }
+
+  session.trackAssignment(assignment);
+  return { ok: true, assignmentId: assignment.id };
 }
 
 export async function fetchBulkSlotSuggestions(
   planningMonthId: string,
-  slots: UnfilledSlotPreview[]
+  slots: UnfilledSlotPreview[],
+  options?: { useAi?: boolean; simulateSequential?: boolean }
 ): Promise<(UnfilledSlotPreview & { suggestions: AgentSuggestion[] })[]> {
   const session = await PlanningSession.open(planningMonthId);
-
+  const ordered = orderSlotsSequentially(slots);
   const results: (UnfilledSlotPreview & { suggestions: AgentSuggestion[] })[] = [];
-  for (const slot of slots) {
-    const suggestions = await session.getSuggestions({
-      siteId: slot.siteId,
-      date: slot.date,
-      shiftType: slot.shiftType,
-      startTime: slot.startTime,
-      endTime: slot.endTime,
-      role: slot.role,
-    });
+
+  for (const slot of ordered) {
+    if (session.isSlotFilled(slot)) {
+      results.push({ ...slot, suggestions: [] });
+      continue;
+    }
+
+    const suggestions = await session.getRankedCandidates(slotToSessionInput(slot), options?.useAi ?? false);
     results.push({ ...slot, suggestions });
+
+    if (options?.simulateSequential && suggestions[0]) {
+      session.trackHypotheticalAssignment(slot, suggestions[0].agentId);
+    }
   }
 
-  results.sort((a, b) => {
-    const aAccepted = a.suggestions.filter((s) => s.accepted);
-    const bAccepted = b.suggestions.filter((s) => s.accepted);
-    const aIds = new Set(aAccepted.map((s) => s.agentId));
-    const bIds = new Set(bAccepted.map((s) => s.agentId));
-    const aCtx: SlotPickContext = {
-      siteId: a.siteId,
-      date: a.date,
-      startTime: a.startTime,
-      endTime: a.endTime,
-      shiftType: a.shiftType,
-      role: a.role,
-    };
-    const bCtx: SlotPickContext = {
-      siteId: b.siteId,
-      date: b.date,
-      startTime: b.startTime,
-      endTime: b.endTime,
-      shiftType: b.shiftType,
-      role: b.role,
-    };
-    const aConstraint = scoreSlotConstraintPriority(session.agents, aIds, aCtx);
-    const bConstraint = scoreSlotConstraintPriority(session.agents, bIds, bCtx);
-
-    return compareSlotFillOrder(
-      {
-        date: a.date,
-        startTime: a.startTime,
-        endTime: a.endTime,
-        shiftType: a.shiftType,
-        role: a.role,
-        requirementPriority: session.requirementPriorityById.get(a.requirementId) ?? 0,
-        eligibleCount: aAccepted.length,
-        ...aConstraint,
-      },
-      {
-        date: b.date,
-        startTime: b.startTime,
-        endTime: b.endTime,
-        shiftType: b.shiftType,
-        role: b.role,
-        requirementPriority: session.requirementPriorityById.get(b.requirementId) ?? 0,
-        eligibleCount: bAccepted.length,
-        ...bConstraint,
-      }
-    );
-  });
-
-  return results.map((row) => ({
-    ...row,
-    suggestions: row.suggestions.filter((s) => s.accepted),
-  }));
+  return results;
 }
 
-async function orderSlotsForFill(
-  session: PlanningSession,
-  slots: UnfilledSlotPreview[]
-): Promise<UnfilledSlotPreview[]> {
-  const scored = await Promise.all(
-    slots.map(async (slot) => {
-      const suggestions = await session.getSuggestions({
-        siteId: slot.siteId,
-        date: slot.date,
-        shiftType: slot.shiftType,
-        startTime: slot.startTime,
-        endTime: slot.endTime,
-        role: slot.role,
-      });
-      const accepted = suggestions.filter((s) => s.accepted);
-      const acceptedIds = new Set(accepted.map((s) => s.agentId));
-      const pickCtx: SlotPickContext = {
-        siteId: slot.siteId,
-        date: slot.date,
-        startTime: slot.startTime,
-        endTime: slot.endTime,
-        shiftType: slot.shiftType,
-        role: slot.role,
-      };
-      const constraint = scoreSlotConstraintPriority(session.agents, acceptedIds, pickCtx);
+export type FillStepResult = {
+  status: "applied" | "skipped" | "already_filled" | "no_candidate" | "failed";
+  agentName?: string;
+  assignmentId?: string;
+  error?: string;
+};
 
+export async function applySingleSlotFill(
+  planningMonthId: string,
+  slot: UnfilledSlotPreview,
+  options?: { useAi?: boolean }
+): Promise<FillStepResult> {
+  const session = await PlanningSession.open(planningMonthId);
+  const useAi = options?.useAi ?? false;
+
+  if (session.isSlotFilled(slot)) {
+    return { status: "already_filled" };
+  }
+
+  const candidates = await session.getRankedCandidates(slotToSessionInput(slot), useAi);
+  if (candidates.length === 0) {
+    return { status: "no_candidate" };
+  }
+
+  let lastError = "Aucun candidat validé";
+  for (const candidate of candidates) {
+    const persisted = await tryPersistAssignment(session, slot, candidate, {
+      aiGenerated: useAi,
+    });
+    if (persisted.ok) {
       return {
-        slot,
-        eligibleCount: accepted.length,
-        requirementPriority: session.requirementPriorityById.get(slot.requirementId) ?? 0,
-        ...constraint,
+        status: "applied",
+        agentName: candidate.agentName,
+        assignmentId: persisted.assignmentId,
       };
-    })
-  );
+    }
+    lastError = persisted.error;
+  }
 
-  scored.sort((a, b) =>
-    compareSlotFillOrder({
-      date: a.slot.date,
-      startTime: a.slot.startTime,
-      endTime: a.slot.endTime,
-      shiftType: a.slot.shiftType,
-      role: a.slot.role,
-      requirementPriority: a.requirementPriority,
-      eligibleCount: a.eligibleCount,
-      dedicatedEligibleCount: a.dedicatedEligibleCount,
-      topDedication: a.topDedication,
-      slotConstraintPriority: a.slotConstraintPriority,
-    }, {
-      date: b.slot.date,
-      startTime: b.slot.startTime,
-      endTime: b.slot.endTime,
-      shiftType: b.slot.shiftType,
-      role: b.slot.role,
-      requirementPriority: b.requirementPriority,
-      eligibleCount: b.eligibleCount,
-      dedicatedEligibleCount: b.dedicatedEligibleCount,
-      topDedication: b.topDedication,
-      slotConstraintPriority: b.slotConstraintPriority,
-    })
-  );
+  return { status: "failed", error: lastError };
+}
 
-  return scored.map((s) => s.slot);
+export function orderSlotsForFill(slots: UnfilledSlotPreview[]): UnfilledSlotPreview[] {
+  return orderSlotsSequentially(slots);
 }
 
 export async function applyBulkFillWithSession(
   planningMonthId: string,
   slots: UnfilledSlotPreview[],
-  options?: { limit?: number; aiGenerated?: boolean }
+  options?: { limit?: number; useAi?: boolean; aiGenerated?: boolean }
 ): Promise<BulkFillResult> {
-  const limit = options?.limit ?? 40;
+  const limit = options?.limit ?? slots.length;
+  const useAi = options?.useAi ?? options?.aiGenerated ?? false;
   const result: BulkFillResult = { applied: 0, skipped: 0, errors: [] };
 
   const session = await PlanningSession.open(planningMonthId);
-  const batch = await orderSlotsForFill(session, slots.slice(0, limit));
-  const createdIds: string[] = [];
+  const batch = orderSlotsSequentially(slots.slice(0, limit));
 
   for (const slot of batch) {
     try {
@@ -518,82 +616,38 @@ export async function applyBulkFillWithSession(
         continue;
       }
 
-      const picked = await session.pickBestAgent({
-        siteId: slot.siteId,
-        date: slot.date,
-        shiftType: slot.shiftType,
-        startTime: slot.startTime,
-        endTime: slot.endTime,
-        role: slot.role,
-      });
-
-      if (!picked) {
+      const candidates = await session.getRankedCandidates(slotToSessionInput(slot), useAi);
+      if (candidates.length === 0) {
         result.skipped++;
         continue;
       }
 
-      const hours = calculateShiftHours(slot.startTime, slot.endTime);
-      const aiExplanation = options?.aiGenerated
-        ? `${picked.agentName} — meilleure affectation (score ${picked.score})`
-        : undefined;
+      let assigned = false;
+      for (const candidate of candidates) {
+        const persisted = await tryPersistAssignment(session, slot, candidate, {
+          aiGenerated: useAi,
+        });
 
-      const assignment = await prisma.assignment.create({
-        data: {
-          ...buildAssignmentWriteData({
-            planningMonthId,
-            agentId: picked.agentId,
-            siteId: slot.siteId,
-            requirementId: slot.requirementId,
-            date: new Date(slot.date),
-            shiftType: slot.shiftType,
-            role: slot.role,
-            startTime: slot.startTime,
-            endTime: slot.endTime,
-            hours,
-          }),
-          aiGenerated: options?.aiGenerated ?? false,
-          aiConfidence: options?.aiGenerated ? picked.score : null,
-          aiExplanation: aiExplanation ?? null,
-        },
-      });
+        if (persisted.ok) {
+          result.applied++;
+          assigned = true;
+          break;
+        }
 
-      session.trackAssignment(assignment);
-      createdIds.push(assignment.id);
-      result.applied++;
+        result.errors.push(
+          `${slot.siteName} ${slot.date} (${candidate.agentName}): ${persisted.error}`
+        );
+      }
+
+      if (!assigned) {
+        result.skipped++;
+      }
     } catch (err) {
       result.errors.push(
         `${slot.siteName} ${slot.date}: ${err instanceof Error ? err.message : "Erreur"}`
       );
       result.skipped++;
     }
-  }
-
-  if (createdIds.length > 0) {
-    const { validateAssignment, syncAgentContractHoursAlert } = await import(
-      "@/services/rules/validate-assignment"
-    );
-    const outcomes = await Promise.all(createdIds.map((id) => validateAssignment(id)));
-    const failedIds = outcomes.filter((o) => o.status === "error").map((o) => o.assignmentId);
-
-    if (failedIds.length > 0) {
-      await rollbackAssignments(failedIds);
-      result.applied -= failedIds.length;
-      result.skipped += failedIds.length;
-      result.errors.push(`${failedIds.length} affectation(s) rejetée(s) par le moteur de règles`);
-    }
-
-    const seenAgents = new Set<string>();
-    for (const outcome of outcomes) {
-      if (failedIds.includes(outcome.assignmentId)) continue;
-      const row = await prisma.assignment.findUnique({
-        where: { id: outcome.assignmentId },
-        select: { agentId: true },
-      });
-      if (row) seenAgents.add(row.agentId);
-    }
-    await Promise.all(
-      [...seenAgents].map((agentId) => syncAgentContractHoursAlert(agentId, planningMonthId))
-    );
   }
 
   return result;

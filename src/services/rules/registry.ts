@@ -24,6 +24,8 @@ import {
   dayNightTransitionRule,
   weekendLimitRule,
   canWorkNightRule,
+  maxShiftsOnDayRule,
+  maxShiftsPerMonthRule,
 } from "@/services/rules/business-rules";
 import { siteCoverageRule } from "@/services/rules/planning-rules";
 
@@ -52,6 +54,8 @@ export const RULE_REGISTRY: Record<string, PlanningRule> = {
   MAX_CONSECUTIVE_WORK_DAYS: consecutiveWorkDaysRule,
   DAY_NIGHT_TRANSITION: dayNightTransitionRule,
   MAX_WEEKENDS: weekendLimitRule,
+  MAX_SHIFTS_ON_DAY: maxShiftsOnDayRule,
+  MAX_SHIFTS_PER_MONTH: maxShiftsPerMonthRule,
   SITE_COVERAGE_MISSING: siteCoverageRule,
   PLANNING_VALIDATED: planningValidatedRule,
 };
@@ -73,9 +77,10 @@ export const ASSIGNMENT_RULE_CODES = [
   "MAX_CONSECUTIVE_WORK_DAYS",
   "DAY_NIGHT_TRANSITION",
   "MAX_WEEKENDS",
+  "MAX_SHIFTS_ON_DAY",
+  "MAX_SHIFTS_PER_MONTH",
   "DOUBLE_ASSIGNMENT",
   "OVERLAPPING_SHIFT",
-  "POSITION_ROLE_MISMATCH",
   "FIXED_START_TIME_MISMATCH",
   "FIXED_END_TIME_MISMATCH",
   "SITE_PREFERRED_WARNING",

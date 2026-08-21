@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { parseDateKey } from "@/lib/planning/dates";
 
 export const dayOfWeekSchema = z.enum([
   "MONDAY",
@@ -86,12 +87,21 @@ export const siteRequirementSchema = z.object({
   active: z.boolean().default(true),
 });
 
+function toPlanningDate(value: unknown): Date {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
+  if (typeof value === "string") {
+    const key = value.slice(0, 10);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(key)) return parseDateKey(key);
+  }
+  return new Date(value as string);
+}
+
 export const assignmentSchema = z.object({
   planningMonthId: z.string().min(1),
   agentId: z.string().min(1),
   siteId: z.string().min(1),
   requirementId: z.string().optional(),
-  date: z.coerce.date(),
+  date: z.preprocess(toPlanningDate, z.date()),
   shiftType: shiftTypeSchema,
   role: positionRoleSchema.default("AGENT"),
   startTime: z.string().regex(/^\d{2}:\d{2}$/),

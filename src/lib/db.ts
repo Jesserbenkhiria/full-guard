@@ -32,7 +32,7 @@ function getPrismaClient(): PrismaClient {
     globalForPrisma.prismaClientVersion = PRISMA_CLIENT_VERSION;
   }
 
-  return globalForPrisma.prisma;
+  return globalForPrisma.prisma!;
 }
 
 export const prisma = getPrismaClient();

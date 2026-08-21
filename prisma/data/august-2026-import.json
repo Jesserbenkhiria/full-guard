@@ -1,0 +1,1616 @@
+{
+  "year": 2026,
+  "month": 8,
+  "source": "FILES AOUT PDFs",
+  "assignmentCount": 201,
+  "assignments": [
+    {
+      "date": "2026-08-01",
+      "siteKey": "GEMEAUX",
+      "agentKey": "AOUFI",
+      "startTime": "19:00",
+      "endTime": "07:00",
+      "shiftType": "NIGHT"
+    },
+    {
+      "date": "2026-08-01",
+      "siteKey": "GEMEAUX",
+      "agentKey": "CAMARA",
+      "startTime": "19:00",
+      "endTime": "07:00",
+      "shiftType": "NIGHT"
+    },
+    {
+      "date": "2026-08-01",
+      "siteKey": "GEMEAUX",
+      "agentKey": "DEMBELE",
+      "startTime": "07:00",
+      "endTime": "19:00",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-01",
+      "siteKey": "GEMEAUX",
+      "agentKey": "DIAKITE",
+      "startTime": "19:00",
+      "endTime": "07:00",
+      "shiftType": "NIGHT"
+    },
+    {
+      "date": "2026-08-01",
+      "siteKey": "GEMEAUX",
+      "agentKey": "DJEDIA",
+      "startTime": "19:00",
+      "endTime": "07:00",
+      "shiftType": "NIGHT"
+    },
+    {
+      "date": "2026-08-01",
+      "siteKey": "GEMEAUX",
+      "agentKey": "DJEDIA",
+      "startTime": "07:00",
+      "endTime": "19:00",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-01",
+      "siteKey": "GEMEAUX",
+      "agentKey": "DORCE",
+      "startTime": "19:00",
+      "endTime": "07:00",
+      "shiftType": "NIGHT"
+    },
+    {
+      "date": "2026-08-01",
+      "siteKey": "GEMEAUX",
+      "agentKey": "DORCE",
+      "startTime": "07:00",
+      "endTime": "19:00",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-01",
+      "siteKey": "GEMEAUX",
+      "agentKey": "EVINA",
+      "startTime": "07:00",
+      "endTime": "19:00",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-01",
+      "siteKey": "GEMEAUX",
+      "agentKey": "HOUNGUES",
+      "startTime": "07:00",
+      "endTime": "19:00",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-01",
+      "siteKey": "GEMEAUX",
+      "agentKey": "SEITI",
+      "startTime": "07:00",
+      "endTime": "19:00",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-01",
+      "siteKey": "GEMEAUX",
+      "agentKey": "YAHMADI",
+      "startTime": "19:00",
+      "endTime": "07:00",
+      "shiftType": "NIGHT"
+    },
+    {
+      "date": "2026-08-01",
+      "siteKey": "LE DOUZE",
+      "agentKey": "DJONKA",
+      "startTime": "08:45",
+      "endTime": "19:30",
+      "shiftType": "CUSTOM"
+    },
+    {
+      "date": "2026-08-01",
+      "siteKey": "LE DOUZE",
+      "agentKey": "KAID",
+      "startTime": "08:45",
+      "endTime": "19:30",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-01",
+      "siteKey": "LE DOUZE",
+      "agentKey": "MBODJI",
+      "startTime": "08:45",
+      "endTime": "19:30",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-01",
+      "siteKey": "ORDINAL",
+      "agentKey": "Oumar_CAMARA",
+      "startTime": "08:00",
+      "endTime": "20:00",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-01",
+      "siteKey": "PLEYEL",
+      "agentKey": "Gnagno_DALIGOU",
+      "startTime": "08:00",
+      "endTime": "20:00",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-01",
+      "siteKey": "PLEYEL",
+      "agentKey": "Gnagno_DALIGOU",
+      "startTime": "20:00",
+      "endTime": "08:00",
+      "shiftType": "NIGHT"
+    },
+    {
+      "date": "2026-08-02",
+      "siteKey": "GEMEAUX",
+      "agentKey": "AOUFI",
+      "startTime": "07:00",
+      "endTime": "19:00",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-02",
+      "siteKey": "GEMEAUX",
+      "agentKey": "CAMARA",
+      "startTime": "19:00",
+      "endTime": "07:00",
+      "shiftType": "NIGHT"
+    },
+    {
+      "date": "2026-08-02",
+      "siteKey": "GEMEAUX",
+      "agentKey": "DEMBELE",
+      "startTime": "07:00",
+      "endTime": "19:00",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-02",
+      "siteKey": "GEMEAUX",
+      "agentKey": "DIAKITE",
+      "startTime": "19:00",
+      "endTime": "07:00",
+      "shiftType": "NIGHT"
+    },
+    {
+      "date": "2026-08-02",
+      "siteKey": "GEMEAUX",
+      "agentKey": "DJEDIA",
+      "startTime": "19:00",
+      "endTime": "07:00",
+      "shiftType": "NIGHT"
+    },
+    {
+      "date": "2026-08-02",
+      "siteKey": "GEMEAUX",
+      "agentKey": "DJEDIA",
+      "startTime": "07:00",
+      "endTime": "19:00",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-02",
+      "siteKey": "GEMEAUX",
+      "agentKey": "DORCE",
+      "startTime": "19:00",
+      "endTime": "07:00",
+      "shiftType": "NIGHT"
+    },
+    {
+      "date": "2026-08-02",
+      "siteKey": "GEMEAUX",
+      "agentKey": "EVINA",
+      "startTime": "07:00",
+      "endTime": "19:00",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-02",
+      "siteKey": "GEMEAUX",
+      "agentKey": "HOUNGUES",
+      "startTime": "07:00",
+      "endTime": "19:00",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-02",
+      "siteKey": "GEMEAUX",
+      "agentKey": "SEITI",
+      "startTime": "08:00",
+      "endTime": "17:45",
+      "shiftType": "CUSTOM"
+    },
+    {
+      "date": "2026-08-02",
+      "siteKey": "GEMEAUX",
+      "agentKey": "SEITI",
+      "startTime": "07:00",
+      "endTime": "19:00",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-02",
+      "siteKey": "GEMEAUX",
+      "agentKey": "YAHMADI",
+      "startTime": "19:00",
+      "endTime": "07:00",
+      "shiftType": "NIGHT"
+    },
+    {
+      "date": "2026-08-02",
+      "siteKey": "LE DOUZE",
+      "agentKey": "DJONKA",
+      "startTime": "08:00",
+      "endTime": "17:45",
+      "shiftType": "CUSTOM"
+    },
+    {
+      "date": "2026-08-02",
+      "siteKey": "LE DOUZE",
+      "agentKey": "DJONKA",
+      "startTime": "08:45",
+      "endTime": "19:30",
+      "shiftType": "CUSTOM"
+    },
+    {
+      "date": "2026-08-02",
+      "siteKey": "LE DOUZE",
+      "agentKey": "KAID",
+      "startTime": "08:45",
+      "endTime": "19:30",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-02",
+      "siteKey": "LE DOUZE",
+      "agentKey": "MBODJI",
+      "startTime": "08:45",
+      "endTime": "19:30",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-02",
+      "siteKey": "ORDINAL",
+      "agentKey": "Oumar_CAMARA",
+      "startTime": "08:00",
+      "endTime": "20:00",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-02",
+      "siteKey": "PLEYEL",
+      "agentKey": "Georges_ZAMBA",
+      "startTime": "08:00",
+      "endTime": "20:00",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-02",
+      "siteKey": "PLEYEL",
+      "agentKey": "Georges_ZAMBA",
+      "startTime": "20:00",
+      "endTime": "08:30",
+      "shiftType": "NIGHT"
+    },
+    {
+      "date": "2026-08-03",
+      "siteKey": "GEMEAUX",
+      "agentKey": "AOUFI",
+      "startTime": "07:00",
+      "endTime": "19:00",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-03",
+      "siteKey": "GEMEAUX",
+      "agentKey": "DEMBELE",
+      "startTime": "07:00",
+      "endTime": "19:00",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-03",
+      "siteKey": "GEMEAUX",
+      "agentKey": "DIAKITE",
+      "startTime": "19:00",
+      "endTime": "07:00",
+      "shiftType": "NIGHT"
+    },
+    {
+      "date": "2026-08-03",
+      "siteKey": "GEMEAUX",
+      "agentKey": "DJEDIA",
+      "startTime": "07:00",
+      "endTime": "19:00",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-03",
+      "siteKey": "GEMEAUX",
+      "agentKey": "DORCE",
+      "startTime": "19:00",
+      "endTime": "07:00",
+      "shiftType": "NIGHT"
+    },
+    {
+      "date": "2026-08-03",
+      "siteKey": "GEMEAUX",
+      "agentKey": "EVINA",
+      "startTime": "07:00",
+      "endTime": "19:00",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-03",
+      "siteKey": "GEMEAUX",
+      "agentKey": "EVINA",
+      "startTime": "08:00",
+      "endTime": "17:45",
+      "shiftType": "CUSTOM"
+    },
+    {
+      "date": "2026-08-03",
+      "siteKey": "GEMEAUX",
+      "agentKey": "HOUNGUES",
+      "startTime": "07:00",
+      "endTime": "19:00",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-03",
+      "siteKey": "GEMEAUX",
+      "agentKey": "SEITI",
+      "startTime": "07:00",
+      "endTime": "19:00",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-03",
+      "siteKey": "GEMEAUX",
+      "agentKey": "YAHMADI",
+      "startTime": "19:00",
+      "endTime": "07:00",
+      "shiftType": "NIGHT"
+    },
+    {
+      "date": "2026-08-03",
+      "siteKey": "LE DOUZE",
+      "agentKey": "DJONKA",
+      "startTime": "08:45",
+      "endTime": "19:30",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-03",
+      "siteKey": "LE DOUZE",
+      "agentKey": "KAID",
+      "startTime": "08:45",
+      "endTime": "19:30",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-03",
+      "siteKey": "LE DOUZE",
+      "agentKey": "MBODJI",
+      "startTime": "08:45",
+      "endTime": "19:30",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-03",
+      "siteKey": "ORDINAL",
+      "agentKey": "Lamine_CAMARA",
+      "startTime": "10:00",
+      "endTime": "17:00",
+      "shiftType": "CUSTOM"
+    },
+    {
+      "date": "2026-08-03",
+      "siteKey": "PLEYEL",
+      "agentKey": "Cyrille_OUMBA",
+      "startTime": "18:30",
+      "endTime": "08:30",
+      "shiftType": "NIGHT"
+    },
+    {
+      "date": "2026-08-04",
+      "siteKey": "GEMEAUX",
+      "agentKey": "DEMBELE",
+      "startTime": "07:00",
+      "endTime": "19:00",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-04",
+      "siteKey": "GEMEAUX",
+      "agentKey": "DIAKITE",
+      "startTime": "19:00",
+      "endTime": "07:00",
+      "shiftType": "NIGHT"
+    },
+    {
+      "date": "2026-08-04",
+      "siteKey": "GEMEAUX",
+      "agentKey": "DJEDIA",
+      "startTime": "07:00",
+      "endTime": "19:00",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-04",
+      "siteKey": "GEMEAUX",
+      "agentKey": "DORCE",
+      "startTime": "19:00",
+      "endTime": "07:00",
+      "shiftType": "NIGHT"
+    },
+    {
+      "date": "2026-08-04",
+      "siteKey": "GEMEAUX",
+      "agentKey": "EVINA",
+      "startTime": "07:00",
+      "endTime": "19:00",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-04",
+      "siteKey": "GEMEAUX",
+      "agentKey": "HOUNGUES",
+      "startTime": "07:00",
+      "endTime": "19:00",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-04",
+      "siteKey": "GEMEAUX",
+      "agentKey": "SEITI",
+      "startTime": "07:00",
+      "endTime": "19:00",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-04",
+      "siteKey": "GEMEAUX",
+      "agentKey": "YAHMADI",
+      "startTime": "19:00",
+      "endTime": "07:00",
+      "shiftType": "NIGHT"
+    },
+    {
+      "date": "2026-08-04",
+      "siteKey": "LE DOUZE",
+      "agentKey": "DJONKA",
+      "startTime": "08:45",
+      "endTime": "19:30",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-04",
+      "siteKey": "LE DOUZE",
+      "agentKey": "KAID",
+      "startTime": "08:45",
+      "endTime": "19:30",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-04",
+      "siteKey": "LE DOUZE",
+      "agentKey": "MBODJI",
+      "startTime": "08:45",
+      "endTime": "19:30",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-04",
+      "siteKey": "ORDINAL",
+      "agentKey": "Lamine_CAMARA",
+      "startTime": "10:00",
+      "endTime": "17:00",
+      "shiftType": "CUSTOM"
+    },
+    {
+      "date": "2026-08-04",
+      "siteKey": "PLEYEL",
+      "agentKey": "Gnagno_DALIGOU",
+      "startTime": "18:30",
+      "endTime": "08:30",
+      "shiftType": "NIGHT"
+    },
+    {
+      "date": "2026-08-05",
+      "siteKey": "GEMEAUX",
+      "agentKey": "DEMBELE",
+      "startTime": "07:00",
+      "endTime": "19:00",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-05",
+      "siteKey": "GEMEAUX",
+      "agentKey": "DIAKITE",
+      "startTime": "19:00",
+      "endTime": "07:00",
+      "shiftType": "NIGHT"
+    },
+    {
+      "date": "2026-08-05",
+      "siteKey": "GEMEAUX",
+      "agentKey": "DJEDIA",
+      "startTime": "08:00",
+      "endTime": "17:45",
+      "shiftType": "CUSTOM"
+    },
+    {
+      "date": "2026-08-05",
+      "siteKey": "GEMEAUX",
+      "agentKey": "DJEDIA",
+      "startTime": "07:00",
+      "endTime": "19:00",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-05",
+      "siteKey": "GEMEAUX",
+      "agentKey": "EVINA",
+      "startTime": "07:00",
+      "endTime": "19:00",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-05",
+      "siteKey": "GEMEAUX",
+      "agentKey": "HOUNGUES",
+      "startTime": "08:00",
+      "endTime": "17:45",
+      "shiftType": "CUSTOM"
+    },
+    {
+      "date": "2026-08-05",
+      "siteKey": "GEMEAUX",
+      "agentKey": "SEITI",
+      "startTime": "07:00",
+      "endTime": "19:00",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-05",
+      "siteKey": "GEMEAUX",
+      "agentKey": "SEITI",
+      "startTime": "08:00",
+      "endTime": "17:45",
+      "shiftType": "CUSTOM"
+    },
+    {
+      "date": "2026-08-05",
+      "siteKey": "GEMEAUX",
+      "agentKey": "YAHMADI",
+      "startTime": "19:00",
+      "endTime": "07:00",
+      "shiftType": "NIGHT"
+    },
+    {
+      "date": "2026-08-05",
+      "siteKey": "LE DOUZE",
+      "agentKey": "DJONKA",
+      "startTime": "08:45",
+      "endTime": "19:30",
+      "shiftType": "CUSTOM"
+    },
+    {
+      "date": "2026-08-05",
+      "siteKey": "LE DOUZE",
+      "agentKey": "KAID",
+      "startTime": "08:45",
+      "endTime": "19:30",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-05",
+      "siteKey": "ORDINAL",
+      "agentKey": "Lamine_CAMARA",
+      "startTime": "10:00",
+      "endTime": "17:00",
+      "shiftType": "CUSTOM"
+    },
+    {
+      "date": "2026-08-05",
+      "siteKey": "PLEYEL",
+      "agentKey": "Georges_ZAMBA",
+      "startTime": "18:30",
+      "endTime": "08:30",
+      "shiftType": "NIGHT"
+    },
+    {
+      "date": "2026-08-06",
+      "siteKey": "GEMEAUX",
+      "agentKey": "DEMBELE",
+      "startTime": "07:00",
+      "endTime": "19:00",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-06",
+      "siteKey": "GEMEAUX",
+      "agentKey": "DIAKITE",
+      "startTime": "19:00",
+      "endTime": "07:00",
+      "shiftType": "NIGHT"
+    },
+    {
+      "date": "2026-08-06",
+      "siteKey": "GEMEAUX",
+      "agentKey": "DJEDIA",
+      "startTime": "19:00",
+      "endTime": "07:00",
+      "shiftType": "NIGHT"
+    },
+    {
+      "date": "2026-08-06",
+      "siteKey": "GEMEAUX",
+      "agentKey": "DJEDIA",
+      "startTime": "07:00",
+      "endTime": "19:00",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-06",
+      "siteKey": "GEMEAUX",
+      "agentKey": "HOUNGUES",
+      "startTime": "07:00",
+      "endTime": "19:00",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-06",
+      "siteKey": "GEMEAUX",
+      "agentKey": "SEITI",
+      "startTime": "07:00",
+      "endTime": "19:00",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-06",
+      "siteKey": "GEMEAUX",
+      "agentKey": "YAHMADI",
+      "startTime": "19:00",
+      "endTime": "07:00",
+      "shiftType": "NIGHT"
+    },
+    {
+      "date": "2026-08-06",
+      "siteKey": "LE DOUZE",
+      "agentKey": "DJONKA",
+      "startTime": "08:45",
+      "endTime": "19:30",
+      "shiftType": "CUSTOM"
+    },
+    {
+      "date": "2026-08-06",
+      "siteKey": "LE DOUZE",
+      "agentKey": "KAID",
+      "startTime": "08:45",
+      "endTime": "19:30",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-06",
+      "siteKey": "ORDINAL",
+      "agentKey": "Lamine_CAMARA",
+      "startTime": "10:00",
+      "endTime": "17:00",
+      "shiftType": "CUSTOM"
+    },
+    {
+      "date": "2026-08-06",
+      "siteKey": "PLEYEL",
+      "agentKey": "Cyrille_OUMBA",
+      "startTime": "18:30",
+      "endTime": "08:30",
+      "shiftType": "NIGHT"
+    },
+    {
+      "date": "2026-08-07",
+      "siteKey": "GEMEAUX",
+      "agentKey": "DIAKITE",
+      "startTime": "19:00",
+      "endTime": "07:00",
+      "shiftType": "NIGHT"
+    },
+    {
+      "date": "2026-08-07",
+      "siteKey": "GEMEAUX",
+      "agentKey": "DJEDIA",
+      "startTime": "07:00",
+      "endTime": "19:00",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-07",
+      "siteKey": "GEMEAUX",
+      "agentKey": "HOUNGUES",
+      "startTime": "07:00",
+      "endTime": "19:00",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-07",
+      "siteKey": "GEMEAUX",
+      "agentKey": "SEITI",
+      "startTime": "08:00",
+      "endTime": "17:45",
+      "shiftType": "CUSTOM"
+    },
+    {
+      "date": "2026-08-07",
+      "siteKey": "LE DOUZE",
+      "agentKey": "DJONKA",
+      "startTime": "08:45",
+      "endTime": "19:30",
+      "shiftType": "CUSTOM"
+    },
+    {
+      "date": "2026-08-07",
+      "siteKey": "ORDINAL",
+      "agentKey": "Lamine_CAMARA",
+      "startTime": "10:00",
+      "endTime": "17:00",
+      "shiftType": "CUSTOM"
+    },
+    {
+      "date": "2026-08-07",
+      "siteKey": "PLEYEL",
+      "agentKey": "Gnagno_DALIGOU",
+      "startTime": "18:30",
+      "endTime": "08:00",
+      "shiftType": "NIGHT"
+    },
+    {
+      "date": "2026-08-08",
+      "siteKey": "GEMEAUX",
+      "agentKey": "DIAKITE",
+      "startTime": "19:00",
+      "endTime": "07:00",
+      "shiftType": "NIGHT"
+    },
+    {
+      "date": "2026-08-08",
+      "siteKey": "GEMEAUX",
+      "agentKey": "SEITI",
+      "startTime": "07:00",
+      "endTime": "19:00",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-08",
+      "siteKey": "LE DOUZE",
+      "agentKey": "DJONKA",
+      "startTime": "08:45",
+      "endTime": "19:30",
+      "shiftType": "CUSTOM"
+    },
+    {
+      "date": "2026-08-08",
+      "siteKey": "ORDINAL",
+      "agentKey": "Oumar_CAMARA",
+      "startTime": "08:00",
+      "endTime": "20:00",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-08",
+      "siteKey": "PLEYEL",
+      "agentKey": "Georges_ZAMBA",
+      "startTime": "08:00",
+      "endTime": "20:00",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-08",
+      "siteKey": "PLEYEL",
+      "agentKey": "Georges_ZAMBA",
+      "startTime": "20:00",
+      "endTime": "08:00",
+      "shiftType": "NIGHT"
+    },
+    {
+      "date": "2026-08-08",
+      "siteKey": "PLEYEL",
+      "agentKey": "Marcelus_DORCE",
+      "startTime": "08:00",
+      "endTime": "20:00",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-09",
+      "siteKey": "GEMEAUX",
+      "agentKey": "LAJIMI",
+      "startTime": "07:00",
+      "endTime": "19:00",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-09",
+      "siteKey": "GEMEAUX",
+      "agentKey": "SEITI",
+      "startTime": "07:00",
+      "endTime": "19:00",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-09",
+      "siteKey": "LE DOUZE",
+      "agentKey": "DJONKA",
+      "startTime": "08:45",
+      "endTime": "19:30",
+      "shiftType": "CUSTOM"
+    },
+    {
+      "date": "2026-08-09",
+      "siteKey": "ORDINAL",
+      "agentKey": "Oumar_CAMARA",
+      "startTime": "08:00",
+      "endTime": "20:00",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-09",
+      "siteKey": "PLEYEL",
+      "agentKey": "Cyrille_OUMBA",
+      "startTime": "08:00",
+      "endTime": "20:00",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-09",
+      "siteKey": "PLEYEL",
+      "agentKey": "Cyrille_OUMBA",
+      "startTime": "20:00",
+      "endTime": "08:30",
+      "shiftType": "NIGHT"
+    },
+    {
+      "date": "2026-08-09",
+      "siteKey": "PLEYEL",
+      "agentKey": "Marcelus_DORCE",
+      "startTime": "08:00",
+      "endTime": "20:00",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-10",
+      "siteKey": "GEMEAUX",
+      "agentKey": "LAJIMI",
+      "startTime": "07:00",
+      "endTime": "19:00",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-10",
+      "siteKey": "GEMEAUX",
+      "agentKey": "SEITI",
+      "startTime": "07:00",
+      "endTime": "19:00",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-10",
+      "siteKey": "LE DOUZE",
+      "agentKey": "DJONKA",
+      "startTime": "08:45",
+      "endTime": "19:30",
+      "shiftType": "CUSTOM"
+    },
+    {
+      "date": "2026-08-10",
+      "siteKey": "ORDINAL",
+      "agentKey": "Lamine_CAMARA",
+      "startTime": "10:00",
+      "endTime": "17:00",
+      "shiftType": "CUSTOM"
+    },
+    {
+      "date": "2026-08-10",
+      "siteKey": "PLEYEL",
+      "agentKey": "Gnagno_DALIGOU",
+      "startTime": "18:30",
+      "endTime": "08:30",
+      "shiftType": "NIGHT"
+    },
+    {
+      "date": "2026-08-10",
+      "siteKey": "PLEYEL",
+      "agentKey": "Marcelus_DORCE",
+      "startTime": "18:30",
+      "endTime": "08:30",
+      "shiftType": "NIGHT"
+    },
+    {
+      "date": "2026-08-11",
+      "siteKey": "GEMEAUX",
+      "agentKey": "LAJIMI",
+      "startTime": "07:00",
+      "endTime": "19:00",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-11",
+      "siteKey": "LE DOUZE",
+      "agentKey": "DJONKA",
+      "startTime": "08:45",
+      "endTime": "19:30",
+      "shiftType": "CUSTOM"
+    },
+    {
+      "date": "2026-08-11",
+      "siteKey": "ORDINAL",
+      "agentKey": "Lamine_CAMARA",
+      "startTime": "10:00",
+      "endTime": "17:00",
+      "shiftType": "CUSTOM"
+    },
+    {
+      "date": "2026-08-11",
+      "siteKey": "PLEYEL",
+      "agentKey": "Georges_ZAMBA",
+      "startTime": "18:30",
+      "endTime": "08:30",
+      "shiftType": "NIGHT"
+    },
+    {
+      "date": "2026-08-12",
+      "siteKey": "LE DOUZE",
+      "agentKey": "DJONKA",
+      "startTime": "08:45",
+      "endTime": "19:30",
+      "shiftType": "CUSTOM"
+    },
+    {
+      "date": "2026-08-12",
+      "siteKey": "ORDINAL",
+      "agentKey": "Lamine_CAMARA",
+      "startTime": "10:00",
+      "endTime": "17:00",
+      "shiftType": "CUSTOM"
+    },
+    {
+      "date": "2026-08-12",
+      "siteKey": "PLEYEL",
+      "agentKey": "Cyrille_OUMBA",
+      "startTime": "18:30",
+      "endTime": "08:30",
+      "shiftType": "NIGHT"
+    },
+    {
+      "date": "2026-08-13",
+      "siteKey": "GEMEAUX",
+      "agentKey": "LAJIMI",
+      "startTime": "08:00",
+      "endTime": "17:45",
+      "shiftType": "CUSTOM"
+    },
+    {
+      "date": "2026-08-13",
+      "siteKey": "GEMEAUX",
+      "agentKey": "YAHMADI",
+      "startTime": "07:00",
+      "endTime": "19:00",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-13",
+      "siteKey": "LE DOUZE",
+      "agentKey": "DJONKA",
+      "startTime": "08:45",
+      "endTime": "19:30",
+      "shiftType": "CUSTOM"
+    },
+    {
+      "date": "2026-08-13",
+      "siteKey": "ORDINAL",
+      "agentKey": "Lamine_CAMARA",
+      "startTime": "10:00",
+      "endTime": "17:00",
+      "shiftType": "CUSTOM"
+    },
+    {
+      "date": "2026-08-13",
+      "siteKey": "PLEYEL",
+      "agentKey": "Gnagno_DALIGOU",
+      "startTime": "18:30",
+      "endTime": "08:30",
+      "shiftType": "NIGHT"
+    },
+    {
+      "date": "2026-08-14",
+      "siteKey": "GEMEAUX",
+      "agentKey": "LAJIMI",
+      "startTime": "07:00",
+      "endTime": "19:00",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-14",
+      "siteKey": "LE DOUZE",
+      "agentKey": "DJONKA",
+      "startTime": "08:45",
+      "endTime": "19:30",
+      "shiftType": "CUSTOM"
+    },
+    {
+      "date": "2026-08-14",
+      "siteKey": "ORDINAL",
+      "agentKey": "Lamine_CAMARA",
+      "startTime": "10:00",
+      "endTime": "17:00",
+      "shiftType": "CUSTOM"
+    },
+    {
+      "date": "2026-08-14",
+      "siteKey": "PLEYEL",
+      "agentKey": "Georges_ZAMBA",
+      "startTime": "18:30",
+      "endTime": "08:00",
+      "shiftType": "NIGHT"
+    },
+    {
+      "date": "2026-08-15",
+      "siteKey": "LE DOUZE",
+      "agentKey": "DJONKA",
+      "startTime": "08:45",
+      "endTime": "19:30",
+      "shiftType": "CUSTOM"
+    },
+    {
+      "date": "2026-08-15",
+      "siteKey": "ORDINAL",
+      "agentKey": "Oumar_CAMARA",
+      "startTime": "08:00",
+      "endTime": "20:00",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-15",
+      "siteKey": "PLEYEL",
+      "agentKey": "Cyrille_OUMBA",
+      "startTime": "08:00",
+      "endTime": "20:00",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-15",
+      "siteKey": "PLEYEL",
+      "agentKey": "Cyrille_OUMBA",
+      "startTime": "20:00",
+      "endTime": "08:00",
+      "shiftType": "NIGHT"
+    },
+    {
+      "date": "2026-08-16",
+      "siteKey": "LE DOUZE",
+      "agentKey": "DJONKA",
+      "startTime": "08:45",
+      "endTime": "19:30",
+      "shiftType": "CUSTOM"
+    },
+    {
+      "date": "2026-08-16",
+      "siteKey": "ORDINAL",
+      "agentKey": "Oumar_CAMARA",
+      "startTime": "08:00",
+      "endTime": "20:00",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-16",
+      "siteKey": "PLEYEL",
+      "agentKey": "Gnagno_DALIGOU",
+      "startTime": "08:00",
+      "endTime": "20:00",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-16",
+      "siteKey": "PLEYEL",
+      "agentKey": "Gnagno_DALIGOU",
+      "startTime": "20:00",
+      "endTime": "08:30",
+      "shiftType": "NIGHT"
+    },
+    {
+      "date": "2026-08-17",
+      "siteKey": "LE DOUZE",
+      "agentKey": "DJONKA",
+      "startTime": "08:45",
+      "endTime": "19:30",
+      "shiftType": "CUSTOM"
+    },
+    {
+      "date": "2026-08-17",
+      "siteKey": "LE DOUZE",
+      "agentKey": "KAID",
+      "startTime": "08:45",
+      "endTime": "19:30",
+      "shiftType": "CUSTOM"
+    },
+    {
+      "date": "2026-08-17",
+      "siteKey": "LE DOUZE",
+      "agentKey": "MBODJI",
+      "startTime": "08:45",
+      "endTime": "19:30",
+      "shiftType": "CUSTOM"
+    },
+    {
+      "date": "2026-08-17",
+      "siteKey": "ORDINAL",
+      "agentKey": "Lamine_CAMARA",
+      "startTime": "10:00",
+      "endTime": "17:00",
+      "shiftType": "CUSTOM"
+    },
+    {
+      "date": "2026-08-17",
+      "siteKey": "PLEYEL",
+      "agentKey": "Georges_ZAMBA",
+      "startTime": "18:30",
+      "endTime": "08:30",
+      "shiftType": "NIGHT"
+    },
+    {
+      "date": "2026-08-18",
+      "siteKey": "LE DOUZE",
+      "agentKey": "DJONKA",
+      "startTime": "08:45",
+      "endTime": "19:30",
+      "shiftType": "CUSTOM"
+    },
+    {
+      "date": "2026-08-18",
+      "siteKey": "LE DOUZE",
+      "agentKey": "KAID",
+      "startTime": "08:45",
+      "endTime": "19:30",
+      "shiftType": "CUSTOM"
+    },
+    {
+      "date": "2026-08-18",
+      "siteKey": "LE DOUZE",
+      "agentKey": "MBODJI",
+      "startTime": "08:45",
+      "endTime": "19:30",
+      "shiftType": "CUSTOM"
+    },
+    {
+      "date": "2026-08-18",
+      "siteKey": "ORDINAL",
+      "agentKey": "Lamine_CAMARA",
+      "startTime": "10:00",
+      "endTime": "17:00",
+      "shiftType": "CUSTOM"
+    },
+    {
+      "date": "2026-08-18",
+      "siteKey": "PLEYEL",
+      "agentKey": "Cyrille_OUMBA",
+      "startTime": "18:30",
+      "endTime": "08:30",
+      "shiftType": "NIGHT"
+    },
+    {
+      "date": "2026-08-19",
+      "siteKey": "LE DOUZE",
+      "agentKey": "DJONKA",
+      "startTime": "08:45",
+      "endTime": "19:30",
+      "shiftType": "CUSTOM"
+    },
+    {
+      "date": "2026-08-19",
+      "siteKey": "ORDINAL",
+      "agentKey": "Lamine_CAMARA",
+      "startTime": "10:00",
+      "endTime": "17:00",
+      "shiftType": "CUSTOM"
+    },
+    {
+      "date": "2026-08-19",
+      "siteKey": "PLEYEL",
+      "agentKey": "Gnagno_DALIGOU",
+      "startTime": "18:30",
+      "endTime": "08:30",
+      "shiftType": "NIGHT"
+    },
+    {
+      "date": "2026-08-20",
+      "siteKey": "LE DOUZE",
+      "agentKey": "DJONKA",
+      "startTime": "08:45",
+      "endTime": "19:30",
+      "shiftType": "CUSTOM"
+    },
+    {
+      "date": "2026-08-20",
+      "siteKey": "ORDINAL",
+      "agentKey": "Lamine_CAMARA",
+      "startTime": "10:00",
+      "endTime": "17:00",
+      "shiftType": "CUSTOM"
+    },
+    {
+      "date": "2026-08-20",
+      "siteKey": "PLEYEL",
+      "agentKey": "Georges_ZAMBA",
+      "startTime": "18:30",
+      "endTime": "08:30",
+      "shiftType": "NIGHT"
+    },
+    {
+      "date": "2026-08-21",
+      "siteKey": "LE DOUZE",
+      "agentKey": "DJONKA",
+      "startTime": "08:45",
+      "endTime": "19:30",
+      "shiftType": "CUSTOM"
+    },
+    {
+      "date": "2026-08-21",
+      "siteKey": "ORDINAL",
+      "agentKey": "Lamine_CAMARA",
+      "startTime": "10:00",
+      "endTime": "17:00",
+      "shiftType": "CUSTOM"
+    },
+    {
+      "date": "2026-08-21",
+      "siteKey": "PLEYEL",
+      "agentKey": "Cyrille_OUMBA",
+      "startTime": "18:30",
+      "endTime": "08:00",
+      "shiftType": "NIGHT"
+    },
+    {
+      "date": "2026-08-22",
+      "siteKey": "LE DOUZE",
+      "agentKey": "DJONKA",
+      "startTime": "08:45",
+      "endTime": "19:30",
+      "shiftType": "CUSTOM"
+    },
+    {
+      "date": "2026-08-22",
+      "siteKey": "ORDINAL",
+      "agentKey": "Oumar_CAMARA",
+      "startTime": "08:00",
+      "endTime": "20:00",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-22",
+      "siteKey": "PLEYEL",
+      "agentKey": "Gnagno_DALIGOU",
+      "startTime": "08:00",
+      "endTime": "20:00",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-22",
+      "siteKey": "PLEYEL",
+      "agentKey": "Gnagno_DALIGOU",
+      "startTime": "20:00",
+      "endTime": "08:00",
+      "shiftType": "NIGHT"
+    },
+    {
+      "date": "2026-08-22",
+      "siteKey": "PLEYEL",
+      "agentKey": "Marcelus_DORCE",
+      "startTime": "08:00",
+      "endTime": "20:00",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-23",
+      "siteKey": "LE DOUZE",
+      "agentKey": "DJONKA",
+      "startTime": "08:45",
+      "endTime": "19:30",
+      "shiftType": "CUSTOM"
+    },
+    {
+      "date": "2026-08-23",
+      "siteKey": "ORDINAL",
+      "agentKey": "Oumar_CAMARA",
+      "startTime": "08:00",
+      "endTime": "20:00",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-23",
+      "siteKey": "PLEYEL",
+      "agentKey": "Georges_ZAMBA",
+      "startTime": "08:00",
+      "endTime": "20:00",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-23",
+      "siteKey": "PLEYEL",
+      "agentKey": "Georges_ZAMBA",
+      "startTime": "20:00",
+      "endTime": "08:30",
+      "shiftType": "NIGHT"
+    },
+    {
+      "date": "2026-08-23",
+      "siteKey": "PLEYEL",
+      "agentKey": "Marcelus_DORCE",
+      "startTime": "08:00",
+      "endTime": "20:00",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-24",
+      "siteKey": "LE DOUZE",
+      "agentKey": "DJONKA",
+      "startTime": "08:45",
+      "endTime": "19:30",
+      "shiftType": "CUSTOM"
+    },
+    {
+      "date": "2026-08-24",
+      "siteKey": "LE DOUZE",
+      "agentKey": "KAID",
+      "startTime": "08:45",
+      "endTime": "19:30",
+      "shiftType": "CUSTOM"
+    },
+    {
+      "date": "2026-08-24",
+      "siteKey": "LE DOUZE",
+      "agentKey": "MBODJI",
+      "startTime": "08:45",
+      "endTime": "19:30",
+      "shiftType": "CUSTOM"
+    },
+    {
+      "date": "2026-08-24",
+      "siteKey": "ORDINAL",
+      "agentKey": "Lamine_CAMARA",
+      "startTime": "10:00",
+      "endTime": "17:00",
+      "shiftType": "CUSTOM"
+    },
+    {
+      "date": "2026-08-24",
+      "siteKey": "PLEYEL",
+      "agentKey": "Cyrille_OUMBA",
+      "startTime": "18:30",
+      "endTime": "08:30",
+      "shiftType": "NIGHT"
+    },
+    {
+      "date": "2026-08-25",
+      "siteKey": "LE DOUZE",
+      "agentKey": "DJONKA",
+      "startTime": "08:45",
+      "endTime": "19:30",
+      "shiftType": "CUSTOM"
+    },
+    {
+      "date": "2026-08-25",
+      "siteKey": "LE DOUZE",
+      "agentKey": "KAID",
+      "startTime": "08:45",
+      "endTime": "19:30",
+      "shiftType": "CUSTOM"
+    },
+    {
+      "date": "2026-08-25",
+      "siteKey": "LE DOUZE",
+      "agentKey": "MBODJI",
+      "startTime": "08:45",
+      "endTime": "19:30",
+      "shiftType": "CUSTOM"
+    },
+    {
+      "date": "2026-08-25",
+      "siteKey": "ORDINAL",
+      "agentKey": "Lamine_CAMARA",
+      "startTime": "10:00",
+      "endTime": "17:00",
+      "shiftType": "CUSTOM"
+    },
+    {
+      "date": "2026-08-25",
+      "siteKey": "PLEYEL",
+      "agentKey": "Gnagno_DALIGOU",
+      "startTime": "18:30",
+      "endTime": "08:30",
+      "shiftType": "NIGHT"
+    },
+    {
+      "date": "2026-08-26",
+      "siteKey": "LE DOUZE",
+      "agentKey": "DJONKA",
+      "startTime": "08:45",
+      "endTime": "19:30",
+      "shiftType": "CUSTOM"
+    },
+    {
+      "date": "2026-08-26",
+      "siteKey": "ORDINAL",
+      "agentKey": "Lamine_CAMARA",
+      "startTime": "10:00",
+      "endTime": "17:00",
+      "shiftType": "CUSTOM"
+    },
+    {
+      "date": "2026-08-26",
+      "siteKey": "PLEYEL",
+      "agentKey": "Georges_ZAMBA",
+      "startTime": "18:30",
+      "endTime": "08:30",
+      "shiftType": "NIGHT"
+    },
+    {
+      "date": "2026-08-27",
+      "siteKey": "LE DOUZE",
+      "agentKey": "DJONKA",
+      "startTime": "08:45",
+      "endTime": "19:30",
+      "shiftType": "CUSTOM"
+    },
+    {
+      "date": "2026-08-27",
+      "siteKey": "ORDINAL",
+      "agentKey": "Lamine_CAMARA",
+      "startTime": "10:00",
+      "endTime": "17:00",
+      "shiftType": "CUSTOM"
+    },
+    {
+      "date": "2026-08-27",
+      "siteKey": "PLEYEL",
+      "agentKey": "Cyrille_OUMBA",
+      "startTime": "18:30",
+      "endTime": "08:30",
+      "shiftType": "NIGHT"
+    },
+    {
+      "date": "2026-08-28",
+      "siteKey": "LE DOUZE",
+      "agentKey": "DJONKA",
+      "startTime": "08:45",
+      "endTime": "19:30",
+      "shiftType": "CUSTOM"
+    },
+    {
+      "date": "2026-08-28",
+      "siteKey": "ORDINAL",
+      "agentKey": "Lamine_CAMARA",
+      "startTime": "10:00",
+      "endTime": "17:00",
+      "shiftType": "CUSTOM"
+    },
+    {
+      "date": "2026-08-28",
+      "siteKey": "PLEYEL",
+      "agentKey": "Gnagno_DALIGOU",
+      "startTime": "18:30",
+      "endTime": "08:00",
+      "shiftType": "NIGHT"
+    },
+    {
+      "date": "2026-08-29",
+      "siteKey": "LE DOUZE",
+      "agentKey": "DJONKA",
+      "startTime": "08:45",
+      "endTime": "19:30",
+      "shiftType": "CUSTOM"
+    },
+    {
+      "date": "2026-08-29",
+      "siteKey": "LE DOUZE",
+      "agentKey": "KAID",
+      "startTime": "08:45",
+      "endTime": "19:30",
+      "shiftType": "CUSTOM"
+    },
+    {
+      "date": "2026-08-29",
+      "siteKey": "ORDINAL",
+      "agentKey": "Oumar_CAMARA",
+      "startTime": "08:00",
+      "endTime": "20:00",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-29",
+      "siteKey": "PLEYEL",
+      "agentKey": "Georges_ZAMBA",
+      "startTime": "08:00",
+      "endTime": "20:00",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-29",
+      "siteKey": "PLEYEL",
+      "agentKey": "Georges_ZAMBA",
+      "startTime": "20:00",
+      "endTime": "08:00",
+      "shiftType": "NIGHT"
+    },
+    {
+      "date": "2026-08-30",
+      "siteKey": "LE DOUZE",
+      "agentKey": "DJONKA",
+      "startTime": "08:45",
+      "endTime": "19:30",
+      "shiftType": "CUSTOM"
+    },
+    {
+      "date": "2026-08-30",
+      "siteKey": "LE DOUZE",
+      "agentKey": "KAID",
+      "startTime": "08:45",
+      "endTime": "19:30",
+      "shiftType": "CUSTOM"
+    },
+    {
+      "date": "2026-08-30",
+      "siteKey": "ORDINAL",
+      "agentKey": "Oumar_CAMARA",
+      "startTime": "08:00",
+      "endTime": "20:00",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-30",
+      "siteKey": "PLEYEL",
+      "agentKey": "Cyrille_OUMBA",
+      "startTime": "08:00",
+      "endTime": "20:00",
+      "shiftType": "DAY"
+    },
+    {
+      "date": "2026-08-30",
+      "siteKey": "PLEYEL",
+      "agentKey": "Cyrille_OUMBA",
+      "startTime": "20:00",
+      "endTime": "08:30",
+      "shiftType": "NIGHT"
+    },
+    {
+      "date": "2026-08-31",
+      "siteKey": "LE DOUZE",
+      "agentKey": "DJONKA",
+      "startTime": "08:45",
+      "endTime": "19:30",
+      "shiftType": "CUSTOM"
+    },
+    {
+      "date": "2026-08-31",
+      "siteKey": "ORDINAL",
+      "agentKey": "Lamine_CAMARA",
+      "startTime": "10:00",
+      "endTime": "17:00",
+      "shiftType": "CUSTOM"
+    },
+    {
+      "date": "2026-08-31",
+      "siteKey": "PLEYEL",
+      "agentKey": "Gnagno_DALIGOU",
+      "startTime": "18:30",
+      "endTime": "08:30",
+      "shiftType": "NIGHT"
+    }
+  ]
+}

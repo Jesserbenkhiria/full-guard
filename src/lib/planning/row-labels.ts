@@ -21,10 +21,7 @@ export function getSlotRowLabel(
     return { label: topName, isHabitual: false, isAssigned: true };
   }
 
-  const hints =
-    row.role === "TEAM_LEADER"
-      ? teamLeaderHints
-      : habitualAgents.filter((name) => !teamLeaderHints.includes(name));
+  const hints = habitualAgents;
 
   const habitual = hints[agentRow] ?? habitualAgents[agentRow];
   if (habitual) {

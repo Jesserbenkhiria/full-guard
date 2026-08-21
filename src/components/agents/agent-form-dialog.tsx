@@ -37,8 +37,20 @@ import {
 import { ALL_DAYS, CONTRACT_HOURS_OPTIONS, DAY_LABELS_FULL } from "@/lib/constants";
 import { fr } from "@/lib/i18n/fr";
 
+type AgentFormSiteRule = {
+  id: string;
+  siteId?: string;
+  ruleType: import("@prisma/client").AgentSiteRuleType;
+  allowedDays: import("@prisma/client").DayOfWeek[];
+  fixedStartTime: string | null;
+  fixedEndTime: string | null;
+  maxHours: number | null;
+  notes: string | null;
+  site?: { id?: string; name: string };
+};
+
 type AgentFormAgent = Agent & {
-  siteRules?: (AgentSiteRule & { site: { id: string; name: string } })[];
+  siteRules?: AgentFormSiteRule[];
 };
 
 type AgentFormDialogProps = {

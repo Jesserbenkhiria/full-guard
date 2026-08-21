@@ -1,6 +1,7 @@
 import type { Agent, AgentSiteRule, ShiftType } from "@prisma/client";
 import type { PositionRole } from "@prisma/client";
 import { getDayOfWeek, isWeekendDateKey, parseDateKey } from "@/lib/planning/dates";
+import { matchesTimeAlternate, hasDateOverrideOn } from "@/lib/planning/saturday-alternate";
 
 export type ConstrainedAgent = Agent & { siteRules: AgentSiteRule[] };
 
@@ -35,6 +36,7 @@ export function getAgentConstraintScore(agent: ConstrainedAgent): number {
   if (!agent.canWorkNight) score += 16;
   if (agent.preferredDays.length > 0) score += 12;
   if (!agent.overtimeAllowed) score += 6;
+  if (agent.overtimeAllowed) score -= 10;
 
   const isPolyvalent = agent.siteRestrictionType === "ANY" && activeRules.length === 0;
   if (isPolyvalent) score -= 80;
@@ -56,16 +58,23 @@ export function getAgentSlotDedication(
   let dedication = 0;
 
   if (siteRule?.ruleType === "ONLY") dedication += 120;
-  else if (siteRule?.ruleType === "PREFERRED") dedication += 45;
+  else if (siteRule?.ruleType === "PREFERRED") dedication -= 80;
 
   if (siteRule?.allowedDays && siteRule.allowedDays.length > 0) {
-    dedication += siteRule.allowedDays.includes(day) ? 90 : -120;
+    const dayAllowed =
+      siteRule.allowedDays.includes(day) || hasDateOverrideOn(siteRule.notes, date);
+    dedication += dayAllowed ? 90 : -120;
   }
 
   if (siteRule?.fixedStartTime && siteRule.fixedStartTime === ctx.startTime) {
     dedication += 35;
   } else if (siteRule?.fixedStartTime) {
     dedication -= 20;
+  }
+
+  if (siteRule?.ruleType === "PREFERRED") {
+    if (siteRule.notes?.includes("backup:primary")) dedication += 8;
+    else if (siteRule.notes?.includes("backup:secondary")) dedication += 2;
   }
 
   if (agent.siteRestrictionType === "ONLY" && !siteRule) {
@@ -110,6 +119,113 @@ export function agentBelongsToSitePool(agent: ConstrainedAgent, siteId: string):
   return agent.siteRules.some((r) => r.siteId === siteId && r.active !== false);
 }
 
+function siteRuleFor(
+  agent: ConstrainedAgent,
+  siteId: string
+): ConstrainedAgent["siteRules"][number] | undefined {
+  return agent.siteRules.find((r) => r.siteId === siteId && r.active !== false);
+}
+
+function hoursMatchRule(
+  rule: {
+    fixedStartTime?: string | null;
+    fixedEndTime?: string | null;
+    notes?: string | null;
+  },
+  ctx: SlotPickContext
+): boolean {
+  const date = typeof ctx.date === "string" ? parseDateKey(ctx.date) : ctx.date;
+  if (
+    ctx.endTime &&
+    matchesTimeAlternate(rule.notes, date, ctx.startTime, ctx.endTime)
+  ) {
+    return true;
+  }
+  if (rule.fixedStartTime && rule.fixedStartTime !== ctx.startTime) return false;
+  if (rule.fixedEndTime && ctx.endTime && rule.fixedEndTime !== ctx.endTime) return false;
+  return true;
+}
+
+/** Main pool only (ruleType ONLY) — PREFERRED backups are excluded. */
+export function agentMatchesOnlySiteDayPool(
+  agent: ConstrainedAgent,
+  siteId: string,
+  date: Date | string
+): boolean {
+  const siteRule = siteRuleFor(agent, siteId);
+  if (!siteRule || siteRule.ruleType !== "ONLY") return false;
+  if (siteRule.allowedDays.length > 0) {
+    const day = getDayOfWeek(typeof date === "string" ? parseDateKey(date) : date);
+    if (siteRule.allowedDays.includes(day)) return true;
+    const d = typeof date === "string" ? parseDateKey(date) : date;
+    return hasDateOverrideOn(siteRule.notes, d);
+  }
+  return true;
+}
+
+/** Dedicated-site pool check including lun-ven / sam-dim splits (e.g. ORDINAL Camara). */
+export function agentMatchesSiteDayPool(
+  agent: ConstrainedAgent,
+  siteId: string,
+  date: Date | string
+): boolean {
+  return agentMatchesOnlySiteDayPool(agent, siteId, date);
+}
+
+/**
+ * Fill tier on a dedicated site:
+ * 0 = main ONLY agents (Kaid, Mbodji, Djonka…)
+ * 1 = PREFERRED last-resort backups (Evina, Djedia on LE DOUZE)
+ * 2 = polyvalent
+ * 3 = other
+ */
+export function getDedicatedFillTier(
+  agent: ConstrainedAgent,
+  ctx: SlotPickContext
+): number {
+  const rule = siteRuleFor(agent, ctx.siteId);
+  if (rule?.ruleType === "ONLY" && hoursMatchRule(rule, ctx)) {
+    if (agentMatchesOnlySiteDayPool(agent, ctx.siteId, ctx.date)) return 0;
+  }
+  if (rule?.ruleType === "PREFERRED" && hoursMatchRule(rule, ctx)) return 1;
+  if (isPolyvalentAgent(agent)) return 2;
+  return 3;
+}
+
+/**
+ * Dedicated-site pick order:
+ * 1. ONLY agents whose day + hours match (main pool)
+ * 2. PREFERRED backups — only if no main agent is eligible (would break a rule)
+ * 3. Polyvalent remplaçant
+ */
+export function filterDedicatedSiteCandidates<T extends { agentId: string; accepted: boolean }>(
+  candidates: T[],
+  agentsById: Map<string, ConstrainedAgent>,
+  ctx: SlotPickContext
+): T[] {
+  const accepted = candidates.filter((c) => c.accepted);
+  if (accepted.length === 0) return accepted;
+
+  const byTier = (tier: number) =>
+    accepted.filter((c) => {
+      const agent = agentsById.get(c.agentId);
+      return agent ? getDedicatedFillTier(agent, ctx) === tier : false;
+    });
+
+  const onlyTier = byTier(0);
+  if (onlyTier.length > 0) return onlyTier;
+
+  const preferredTier = byTier(1);
+  const saturdaySolo =
+    ctx.startTime === "08:45" && ctx.endTime === "19:30";
+  if (preferredTier.length > 0 && !saturdaySolo) return preferredTier;
+
+  const polyvalent = byTier(2);
+  if (polyvalent.length > 0) return polyvalent;
+
+  return [];
+}
+
 /**
  * On dedicated sites (e.g. LE DOUZE), only pool agents or polyvalent backups may work.
  * Agents like YAHMADI (PREFERRED on other sites only) are excluded.
@@ -117,10 +233,16 @@ export function agentBelongsToSitePool(agent: ConstrainedAgent, siteId: string):
 export function isAgentAllowedOnDedicatedSite(
   agent: ConstrainedAgent,
   siteId: string,
-  dedicatedSiteIds: Set<string>
+  dedicatedSiteIds: Set<string>,
+  date?: Date | string
 ): boolean {
   if (!dedicatedSiteIds.has(siteId)) return true;
-  if (agentBelongsToSitePool(agent, siteId)) return true;
+  const rule = siteRuleFor(agent, siteId);
+  if (rule?.ruleType === "ONLY") {
+    if (date != null) return agentMatchesOnlySiteDayPool(agent, siteId, date);
+    return true;
+  }
+  if (rule?.ruleType === "PREFERRED") return true;
   if (isPolyvalentAgent(agent)) return true;
   return false;
 }
@@ -137,6 +259,10 @@ export function compareAgentsForSlot(
   const agentA = agentsById.get(a.agentId);
   const agentB = agentsById.get(b.agentId);
   if (!agentA || !agentB) return b.score - a.score;
+
+  const tierA = getDedicatedFillTier(agentA, ctx);
+  const tierB = getDedicatedFillTier(agentB, ctx);
+  if (tierA !== tierB) return tierA - tierB;
 
   const dedA = getAgentSlotDedication(agentA, ctx);
   const dedB = getAgentSlotDedication(agentB, ctx);
@@ -195,6 +321,23 @@ export function compareSlotFillOrder(a: SlotOrderInput, b: SlotOrderInput): numb
   if (aW !== bW) return aW - bW;
 
   return a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime);
+}
+
+/** Day-first fill order: complete each calendar day before advancing. */
+export function compareSequentialSlotOrder(
+  a: { date: string; startTime: string; siteName?: string; requirementId?: string },
+  b: { date: string; startTime: string; siteName?: string; requirementId?: string }
+): number {
+  const dateCmp = a.date.localeCompare(b.date);
+  if (dateCmp !== 0) return dateCmp;
+
+  const timeCmp = a.startTime.localeCompare(b.startTime);
+  if (timeCmp !== 0) return timeCmp;
+
+  const siteCmp = (a.siteName ?? "").localeCompare(b.siteName ?? "", "fr");
+  if (siteCmp !== 0) return siteCmp;
+
+  return (a.requirementId ?? "").localeCompare(b.requirementId ?? "");
 }
 
 export function scoreSlotConstraintPriority(

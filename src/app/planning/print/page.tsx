@@ -1,4 +1,7 @@
-import { formatMonthLabel } from "@/lib/planning/dates";
+import { formatMonthLabel, formatShortWeekday, isWeekendDateKey, parseDateKey } from "@/lib/planning/dates";
+import { weekendPrintClass } from "@/lib/planning/weekend-style";
+import { weekendPeriodKey } from "@/lib/planning/weekends";
+import { splitAgentNameForPrint } from "@/lib/planning/print-format";
 import { getSiteColorStyle } from "@/lib/site-colors";
 import { getPlanningData } from "@/services/planning/queries";
 import {
@@ -168,56 +171,84 @@ function AgentPrintView({ data }: { data: PlanningData }) {
       <thead>
         <tr>
           <th className="agent-col">Agent</th>
-          {data.days.map((day) => (
-            <th key={day}>{day.slice(8, 10)}</th>
-          ))}
+          {data.days.map((day) => {
+            const weekend = weekendPrintClass(day);
+            return (
+              <th key={day} className={weekend}>
+                <span className="print-weekday">{formatShortWeekday(day)}</span>
+                <span className="print-daynum">{day.slice(8, 10)}</span>
+              </th>
+            );
+          })}
           <th>{fr.planning.totalHours}</th>
+          <th>{fr.planning.printVacationsShort}</th>
+          <th>{fr.planning.printWeekendsShort}</th>
         </tr>
       </thead>
       <tbody>
-        {data.agents.map((agent) => (
-          <tr key={agent.agentId}>
-            <td className="agent-col">
-              {agent.agentName}
-              {agent.contractHours && (
-                <>
-                  <br />
-                  <small>{agent.contractHours}h</small>
-                </>
-              )}
-            </td>
-            {agent.days.map((cell) => {
-              const cls =
-                cell.validationStatus === "off"
-                  ? ""
-                  : cell.validationStatus === "error"
-                    ? "error"
-                    : cell.validationStatus === "warning"
-                      ? "warning"
-                      : "filled";
-              return (
-                <td key={cell.date} className={cls}>
-                  {cell.shiftType ? (
-                    <>
-                      {cell.siteName && (
-                        <>
-                          <small>{getSiteColorStyle(cell.siteName).shortLabel}</small>
-                          <br />
-                        </>
-                      )}
-                      {SHIFT_TYPE_LABELS[cell.shiftType]}
-                    </>
-                  ) : (
-                    "—"
-                  )}
-                </td>
-              );
-            })}
-            <td>
-              <strong>{agent.totalHours}h</strong>
-            </td>
-          </tr>
-        ))}
+        {data.agents.map((agent) => {
+          const { lastName, firstName } = splitAgentNameForPrint(agent.agentName);
+          const workedDays = agent.days.filter((cell) => cell.assignmentId || cell.shiftType);
+          const vacations = workedDays.length;
+          const weekendWeeks = new Set(
+            workedDays
+              .filter((cell) => isWeekendDateKey(cell.date))
+              .map((cell) => weekendPeriodKey(parseDateKey(cell.date)))
+          ).size;
+
+          return (
+            <tr key={agent.agentId}>
+              <td className="agent-col">
+                <div className="agent-col-name">
+                  <span className="print-agent-last">{lastName}</span>
+                  {firstName ? <span className="print-agent-first">{firstName}</span> : null}
+                  {agent.contractHours ? (
+                    <span className="agent-col-hours">{agent.contractHours}h/mois</span>
+                  ) : null}
+                </div>
+              </td>
+              {agent.days.map((cell) => {
+                const weekend = weekendPrintClass(cell.date);
+                const cls =
+                  cell.validationStatus === "off"
+                    ? ""
+                    : cell.validationStatus === "error"
+                      ? "error"
+                      : cell.validationStatus === "warning"
+                        ? "warning"
+                        : "filled";
+
+                return (
+                  <td key={cell.date} className={[cls, weekend].filter(Boolean).join(" ")}>
+                    {cell.shiftType ? (
+                      <div className="print-agent-name">
+                        {cell.siteName && (
+                          <span className="print-agent-first">
+                            {getSiteColorStyle(cell.siteName).shortLabel}
+                          </span>
+                        )}
+                        <span className="print-agent-last" style={{ fontSize: "8px" }}>
+                          {SHIFT_TYPE_LABELS[cell.shiftType]}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="print-unassigned">—</span>
+                    )}
+                  </td>
+                );
+              })}
+              <td>
+                <strong>{agent.totalHours}h</strong>
+              </td>
+              <td>
+                <strong>{vacations}</strong>
+              </td>
+              <td>
+                <strong>{weekendWeeks}</strong>
+              </td>
+            </tr>
+          );
+        })}
       </tbody>
     </table>
   );

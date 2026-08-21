@@ -15,6 +15,13 @@ import {
   AGENT_CONSTRAINTS,
   constraintToAgentSeed,
 } from "../src/data/agent-constraints";
+import {
+  GEMEAUX_REQUIREMENTS,
+  LE_DOUZE_REQUIREMENTS,
+  PLEYEL_REQUIREMENTS,
+  VISAGE_SEPTEMBER_2026_SHIFTS,
+  toRequirementCreateData,
+} from "./site-requirements-lajimi";
 
 const prisma = new PrismaClient();
 
@@ -181,9 +188,10 @@ const RULES = [
   {
     code: "POSITION_ROLE_MISMATCH",
     name: "Poste / rôle incompatible",
-    description: "Le rôle requis ne correspond pas au profil agent",
+    description: "Désactivé — le rôle chef d'équipe est informatif, pas bloquant",
     severity: AlertSeverity.ERROR,
     category: "scheduling",
+    enabled: false,
   },
   {
     code: "MAX_CONSECUTIVE_WORK_DAYS",
@@ -202,8 +210,15 @@ const RULES = [
   {
     code: "MAX_WEEKENDS",
     name: "Maximum week-ends",
-    description: "Maximum de 2 week-ends travaillés par mois dépassé",
-    severity: AlertSeverity.WARNING,
+    description: "Maximum de 2 week-ends travaillés par mois — 3e ou 4e week-end interdit",
+    severity: AlertSeverity.ERROR,
+    category: "scheduling",
+  },
+  {
+    code: "MAX_SHIFTS_ON_DAY",
+    name: "Maximum vacations par jour",
+    description: "Nombre max de vacations un jour donné dans le mois (ex. Kaid — 2 samedis)",
+    severity: AlertSeverity.ERROR,
     category: "scheduling",
   },
   {
@@ -227,19 +242,6 @@ const RULES = [
     severity: AlertSeverity.SUCCESS,
     category: "validation",
   },
-];
-
-const VISAGE_SHIFTS: { date: string; start: string; end: string }[] = [
-  { date: "2026-09-13", start: "09:30", end: "17:30" },
-  { date: "2026-09-14", start: "18:00", end: "22:30" },
-  { date: "2026-09-15", start: "17:00", end: "22:30" },
-  { date: "2026-09-16", start: "18:00", end: "22:30" },
-  { date: "2026-09-17", start: "18:00", end: "22:30" },
-  { date: "2026-09-18", start: "18:00", end: "22:30" },
-  { date: "2026-09-27", start: "12:30", end: "18:30" },
-  { date: "2026-09-28", start: "18:00", end: "23:00" },
-  { date: "2026-09-29", start: "17:00", end: "23:00" },
-  { date: "2026-09-30", start: "18:00", end: "23:00" },
 ];
 
 async function main() {
@@ -281,98 +283,11 @@ async function main() {
       shiftDurationHours: 12,
       notes: "Vacation type 12h — postes jour 07h-19h, nuit 19h-07h",
       requirements: {
-        create: [
-          {
-            label: "Chef d'équipe jour lun-ven",
-            days: WEEKDAYS,
-            shiftType: ShiftType.DAY,
-            startTime: "07:00",
-            endTime: "19:00",
-            role: PositionRole.TEAM_LEADER,
-            agentCount: 1,
-            priority: 2,
-          },
-          {
-            label: "Agents jour lun-ven (×2)",
-            days: WEEKDAYS,
-            shiftType: ShiftType.DAY,
-            startTime: "07:00",
-            endTime: "19:00",
-            role: PositionRole.AGENT,
-            agentCount: 2,
-            priority: 1,
-          },
-          {
-            label: "Agent nuit lun-ven",
-            days: WEEKDAYS,
-            shiftType: ShiftType.NIGHT,
-            startTime: "19:00",
-            endTime: "07:00",
-            role: PositionRole.AGENT,
-            agentCount: 1,
-            priority: 1,
-          },
-          {
-            label: "Agent jour samedi 07h-19h",
-            days: [DayOfWeek.SATURDAY],
-            shiftType: ShiftType.DAY,
-            startTime: "07:00",
-            endTime: "19:00",
-            role: PositionRole.AGENT,
-            agentCount: 1,
-            priority: 1,
-          },
-          {
-            label: "Chef d'équipe samedi 08h-17h45",
-            days: [DayOfWeek.SATURDAY],
-            shiftType: ShiftType.CUSTOM,
-            startTime: "08:00",
-            endTime: "17:45",
-            role: PositionRole.TEAM_LEADER,
-            agentCount: 1,
-            priority: 2,
-          },
-          {
-            label: "Agent samedi 08h-17h45",
-            days: [DayOfWeek.SATURDAY],
-            shiftType: ShiftType.CUSTOM,
-            startTime: "08:00",
-            endTime: "17:45",
-            role: PositionRole.AGENT,
-            agentCount: 1,
-            priority: 1,
-          },
-          {
-            label: "Agent nuit samedi",
-            days: [DayOfWeek.SATURDAY],
-            shiftType: ShiftType.NIGHT,
-            startTime: "19:00",
-            endTime: "07:00",
-            role: PositionRole.AGENT,
-            agentCount: 1,
-            priority: 1,
-          },
-          {
-            label: "Agent jour dimanche",
-            days: [DayOfWeek.SUNDAY],
-            shiftType: ShiftType.DAY,
-            startTime: "07:00",
-            endTime: "19:00",
-            role: PositionRole.AGENT,
-            agentCount: 1,
-            priority: 1,
-          },
-          {
-            label: "Agent nuit dimanche",
-            days: [DayOfWeek.SUNDAY],
-            shiftType: ShiftType.NIGHT,
-            startTime: "19:00",
-            endTime: "07:00",
-            role: PositionRole.AGENT,
-            agentCount: 1,
-            priority: 1,
-          },
-        ],
+        create: GEMEAUX_REQUIREMENTS.map((req) => ({
+          ...req,
+          role: req.role ?? PositionRole.AGENT,
+          active: true,
+        })),
       },
     },
   });
@@ -415,17 +330,7 @@ async function main() {
       active: true,
       notes: "Agents privilégiés : DJONKA, KAID, MBODJI",
       requirements: {
-        create: [
-          {
-            label: "Poste standard",
-            days: ALL_DAYS,
-            shiftType: ShiftType.CUSTOM,
-            startTime: "08:45",
-            endTime: "19:30",
-            agentCount: 1,
-            priority: 1,
-          },
-        ],
+        create: LE_DOUZE_REQUIREMENTS.map((req) => toRequirementCreateData(req)),
       },
     },
   });
@@ -435,28 +340,13 @@ async function main() {
       name: "PLEYEL",
       client: "ETOILE PLEYEL 2",
       active: true,
-      notes: "Agents privilégiés : DALIGOU, ZAMBA, OUMBA — exigences variables",
+      notes: "Agents : DALIGOU, ZAMBA, OUMBA (12 vac / 156h) — BELLATTRACH le reliquat",
       requirements: {
-        create: [
-          {
-            label: "Poste jour",
-            days: ALL_DAYS,
-            shiftType: ShiftType.DAY,
-            startTime: "08:00",
-            endTime: "20:00",
-            agentCount: 1,
-            priority: 1,
-          },
-          {
-            label: "Poste nuit",
-            days: ALL_DAYS,
-            shiftType: ShiftType.NIGHT,
-            startTime: "18:30",
-            endTime: "08:30",
-            agentCount: 1,
-            priority: 1,
-          },
-        ],
+        create: PLEYEL_REQUIREMENTS.map((req) => ({
+          ...req,
+          role: PositionRole.AGENT,
+          active: true,
+        })),
       },
     },
   });
@@ -468,7 +358,7 @@ async function main() {
       active: true,
       notes: "Exigences variables importées du client — septembre 2026",
       requirements: {
-        create: VISAGE_SHIFTS.map((shift) => ({
+        create: VISAGE_SEPTEMBER_2026_SHIFTS.map((shift) => ({
           label: `Import ${shift.date.slice(8, 10)}/${shift.date.slice(5, 7)}`,
           days: [],
           shiftType: ShiftType.CUSTOM,
@@ -542,7 +432,7 @@ async function main() {
   const vacations = [
     { agent: "LAJIMI", startDate: "2026-07-27", endDate: "2026-08-24" },
     { agent: "YAHMADI", startDate: "2026-08-01", endDate: "2026-08-20" },
-    { agent: "DORCE", startDate: "2026-09-01", endDate: "2026-10-15" },
+    { agent: "DORCE", startDate: "2026-09-01", endDate: "2026-09-30" },
     { agent: "EVINA", startDate: "2026-09-14", endDate: "2026-10-01" },
   ];
 
@@ -813,8 +703,17 @@ async function main() {
     });
   }
 
-  // ORDINAL — affectations fixes
-  for (const dateStr of ["2026-08-04", "2026-08-05", "2026-08-06", "2026-08-07", "2026-08-08"]) {
+  // ORDINAL — affectations fixes (Lamine lun-ven, Oumar sam-dim — tout le mois)
+  const ordinalAugustWeekdays: string[] = [];
+  const ordinalAugustWeekends: string[] = [];
+  for (let day = 1; day <= 31; day++) {
+    const dateStr = `2026-08-${String(day).padStart(2, "0")}`;
+    const dow = d(dateStr).getUTCDay();
+    if (dow >= 1 && dow <= 5) ordinalAugustWeekdays.push(dateStr);
+    else if (dow === 0 || dow === 6) ordinalAugustWeekends.push(dateStr);
+  }
+
+  for (const dateStr of ordinalAugustWeekdays) {
     await prisma.assignment.create({
       data: {
         planningMonthId: planningAugust.id,
@@ -830,19 +729,21 @@ async function main() {
     });
   }
 
-  await prisma.assignment.create({
-    data: {
-      planningMonthId: planningAugust.id,
-      agentId: getAgent("CAMARA", "Oumar").id,
-      siteId: ordinal.id,
-      date: d("2026-08-09"),
-      shiftType: ShiftType.CUSTOM,
-      startTime: "08:00",
-      endTime: "20:00",
-      hours: 12,
-      notes: "Oumar CAMARA — ORDINAL sam-dim",
-    },
-  });
+  for (const dateStr of ordinalAugustWeekends) {
+    await prisma.assignment.create({
+      data: {
+        planningMonthId: planningAugust.id,
+        agentId: getAgent("CAMARA", "Oumar").id,
+        siteId: ordinal.id,
+        date: d(dateStr),
+        shiftType: ShiftType.CUSTOM,
+        startTime: "08:00",
+        endTime: "20:00",
+        hours: 12,
+        notes: "Oumar CAMARA — ORDINAL sam-dim",
+      },
+    });
+  }
 
   // ZAMBA — conflit médical en septembre
   await prisma.alert.create({

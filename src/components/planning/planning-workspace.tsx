@@ -178,6 +178,7 @@ export function PlanningWorkspace({
             days={days}
             year={planningMonth.year}
             month={planningMonth.month}
+            planningMonthId={planningMonth.id}
             missingBySite={missingBySite}
             onSlotClick={openSlot}
             onOpenSiteSuggestions={(siteId, siteName) => openSuggestions(siteId, siteName)}

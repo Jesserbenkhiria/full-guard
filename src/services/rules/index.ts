@@ -20,6 +20,14 @@ export {
 } from "@/services/rules/export-check";
 export { validatePlanningGate, type PlanningGateResult, type SiteExportCheck } from "@/services/rules/validate-planning-gate";
 export {
+  validateSitePlanningGate,
+  validateAllSitesPlanningGate,
+  validatePlanningSite,
+  invalidateSitePlanningStatus,
+  syncPlanningMonthStatus,
+  type SitePlanningGateResult,
+} from "@/services/rules/validate-site-planning-gate";
+export {
   getEligibleAgents,
   evaluateAgentForSlot,
   loadAgentsAvailabilityForDate,

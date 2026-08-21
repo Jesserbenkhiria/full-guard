@@ -6,6 +6,13 @@ import type { AgentPlanningRow } from "@/types/planning";
 import { SiteLabel } from "@/components/shared/site-label";
 import { fr } from "@/lib/i18n/fr";
 import { AlertTriangle } from "lucide-react";
+import { formatDayOfMonth, formatShortWeekday } from "@/lib/planning/dates";
+import {
+  weekendCellClass,
+  weekendHeaderClass,
+  weekendHeaderLabelClass,
+} from "@/lib/planning/weekend-style";
+import { cn } from "@/lib/utils";
 
 type AgentPlanningViewProps = {
   agents: AgentPlanningRow[];
@@ -51,8 +58,24 @@ export function AgentPlanningView({
               Agent
             </th>
             {days.map((day) => (
-              <th key={day} className="min-w-[52px] px-1 py-2 text-center font-medium">
-                {day.slice(8, 10)}
+              <th
+                key={day}
+                className={cn(
+                  "min-w-[52px] px-1 py-2 text-center font-medium",
+                  weekendHeaderClass(day)
+                )}
+              >
+                <div className="flex flex-col items-center leading-tight">
+                  <span
+                    className={cn(
+                      "text-[9px] uppercase font-semibold",
+                      weekendHeaderLabelClass(day)
+                    )}
+                  >
+                    {formatShortWeekday(day)}
+                  </span>
+                  <span>{formatDayOfMonth(day)}</span>
+                </div>
               </th>
             ))}
             <th className="min-w-[100px] px-2 py-2 text-right font-medium">{fr.planning.totalHours}</th>
@@ -77,7 +100,10 @@ export function AgentPlanningView({
                 )}
               </td>
               {agent.days.map((cell) => (
-                <td key={cell.date} className="p-1 align-top">
+                <td
+                  key={cell.date}
+                  className={cn("p-1 align-top", weekendCellClass(cell.date))}
+                >
                   <AgentDayCell
                     label={shiftLabel(cell.shiftType)}
                     status={cell.validationStatus}

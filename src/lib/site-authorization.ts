@@ -1,6 +1,7 @@
 import type { AgentSiteRuleType, DayOfWeek, SiteRestrictionType } from "@prisma/client";
 import { getDayOfWeek } from "@/lib/planning/dates";
 import { formatDays } from "@/lib/constants";
+import { matchesTimeAlternate, hasDateOverrideOn } from "@/lib/planning/saturday-alternate";
 
 export type AgentSiteRuleInput = {
   siteId: string;
@@ -9,6 +10,7 @@ export type AgentSiteRuleInput = {
   fixedStartTime?: string | null;
   fixedEndTime?: string | null;
   maxHours?: number | null;
+  notes?: string | null;
   active?: boolean;
 };
 
@@ -140,16 +142,19 @@ export function evaluateAgentSiteRules(
     if (applicableRule.allowedDays.length > 0) {
       const day = getDayOfWeek(check.date);
       if (!applicableRule.allowedDays.includes(day)) {
-        results.push({
-          authorized: false,
-          preferred: false,
-          severity: "error",
-          message: prefixName(
-            agentName,
-            `ne peut travailler que ${formatDays(applicableRule.allowedDays)} sur ce site`
-          ),
-          ruleCode: "SITE_DAY_NOT_ALLOWED",
-        });
+        const dateException = hasDateOverrideOn(applicableRule.notes, check.date);
+        if (!dateException) {
+          results.push({
+            authorized: false,
+            preferred: false,
+            severity: "error",
+            message: prefixName(
+              agentName,
+              `ne peut travailler que ${formatDays(applicableRule.allowedDays)} sur ce site`
+            ),
+            ruleCode: "SITE_DAY_NOT_ALLOWED",
+          });
+        }
       }
     }
 
@@ -157,38 +162,48 @@ export function evaluateAgentSiteRules(
       applicableRule.fixedStartTime &&
       applicableRule.fixedStartTime !== check.startTime
     ) {
-      const hardBlock = applicableRule.ruleType === "ONLY";
-      results.push({
-        authorized: !hardBlock,
-        preferred: applicableRule.ruleType !== "PREFERRED",
-        severity: hardBlock ? "error" : "warning",
-        message: prefixName(
-          agentName,
-          hardBlock
-            ? `début obligatoire à ${applicableRule.fixedStartTime} sur ce site`
-            : `heure de début attendue : ${applicableRule.fixedStartTime}`
-        ),
-        ruleCode: "FIXED_START_TIME_MISMATCH",
-      });
+      const alternateOk = matchesTimeAlternate(
+        applicableRule.notes,
+        check.date,
+        check.startTime,
+        check.endTime
+      );
+      if (!alternateOk) {
+        results.push({
+          authorized: false,
+          preferred: false,
+          severity: "error",
+          message: prefixName(
+            agentName,
+            `début obligatoire à ${applicableRule.fixedStartTime} sur ce site`
+          ),
+          ruleCode: "FIXED_START_TIME_MISMATCH",
+        });
+      }
     }
 
     if (
       applicableRule.fixedEndTime &&
       applicableRule.fixedEndTime !== check.endTime
     ) {
-      const hardBlock = applicableRule.ruleType === "ONLY";
-      results.push({
-        authorized: !hardBlock,
-        preferred: applicableRule.ruleType !== "PREFERRED",
-        severity: hardBlock ? "error" : "warning",
-        message: prefixName(
-          agentName,
-          hardBlock
-            ? `fin obligatoire à ${applicableRule.fixedEndTime} sur ce site`
-            : `heure de fin attendue : ${applicableRule.fixedEndTime}`
-        ),
-        ruleCode: "FIXED_END_TIME_MISMATCH",
-      });
+      const alternateOk = matchesTimeAlternate(
+        applicableRule.notes,
+        check.date,
+        check.startTime,
+        check.endTime
+      );
+      if (!alternateOk) {
+        results.push({
+          authorized: false,
+          preferred: false,
+          severity: "error",
+          message: prefixName(
+            agentName,
+            `fin obligatoire à ${applicableRule.fixedEndTime} sur ce site`
+          ),
+          ruleCode: "FIXED_END_TIME_MISMATCH",
+        });
+      }
     }
   }
 

@@ -6,12 +6,12 @@ import {
 
 export type { BulkFillResult };
 
-const DEFAULT_LIMIT = 40;
-
 export async function applyBulkSuggestions(
   planningMonthId: string,
   slots: UnfilledSlotPreview[],
-  limit = DEFAULT_LIMIT
+  limit?: number
 ): Promise<BulkFillResult> {
-  return applyBulkFillWithSession(planningMonthId, slots, { limit });
+  return applyBulkFillWithSession(planningMonthId, slots, {
+    limit: limit ?? slots.length,
+  });
 }

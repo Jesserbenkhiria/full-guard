@@ -66,3 +66,10 @@ export function isWeekendDateKey(dateKey: string): boolean {
   const dow = getDay(parseDateKey(dateKey));
   return dow === 0 || dow === 6;
 }
+
+export function getWeekendKind(dateKey: string): "saturday" | "sunday" | null {
+  const dow = getDay(parseDateKey(dateKey));
+  if (dow === 6) return "saturday";
+  if (dow === 0) return "sunday";
+  return null;
+}

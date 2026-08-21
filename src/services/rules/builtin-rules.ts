@@ -1,10 +1,10 @@
 import type { ExtendedRuleContext } from "@/services/rules/context";
 import type { PlanningRule } from "@/services/rules/engine";
 import { ruleFail, rulePass, getValidationResults } from "@/services/rules/rule-result";
-import { isDateInRange } from "@/lib/planning/dates";
+import { isDateInRange, toDateKey } from "@/lib/planning/dates";
 import { calculateShiftHours, shiftsOverlap } from "@/lib/planning/hours";
+import { agentAllowsConsecutiveShifts, agentKeyFromAgent } from "@/data/agent-constraints";
 import { evaluateAgentSiteRules, evaluateSiteAuthorization } from "@/lib/site-authorization";
-import { POSITION_ROLE_LABELS, resolveIsTeamLeader } from "@/lib/constants";
 
 export { getValidationResults };
 
@@ -67,9 +67,9 @@ export const medicalConflictRule: PlanningRule = {
   code: "MEDICAL_CONFLICT",
   name: "Conflit visite médicale",
   check(ctx: ExtendedRuleContext) {
-    const dateKey = ctx.date.toISOString().slice(0, 10);
+    const dateKey = toDateKey(ctx.date);
     for (const visit of ctx.medicalVisits) {
-      if (visit.date.toISOString().slice(0, 10) === dateKey) {
+      if (toDateKey(visit.date) === dateKey) {
         return ruleFail(
           "ERROR",
           `${ctx.agentName} — agent indisponible pendant cette période (visite médicale)`
@@ -84,9 +84,9 @@ export const unavailableDateRule: PlanningRule = {
   code: "UNAVAILABLE_DATE",
   name: "Date indisponible",
   check(ctx: ExtendedRuleContext) {
-    const dateKey = ctx.date.toISOString().slice(0, 10);
+    const dateKey = toDateKey(ctx.date);
     for (const unavailable of ctx.unavailableDates) {
-      if (unavailable.toISOString().slice(0, 10) === dateKey) {
+      if (toDateKey(unavailable) === dateKey) {
         return ruleFail(
           "ERROR",
           `${ctx.agentName} — agent indisponible pendant cette période`
@@ -101,13 +101,32 @@ export const doubleAssignmentRule: PlanningRule = {
   code: "DOUBLE_ASSIGNMENT",
   name: "Double affectation",
   check(ctx: ExtendedRuleContext) {
-    if (ctx.sameDayAssignments.length > 0) {
+    if (ctx.sameDayAssignments.length === 0) return rulePass();
+
+    const otherSite = ctx.sameDayAssignments.filter((a) => a.siteId !== ctx.siteId);
+    if (otherSite.length > 0 && !agentAllowsConsecutiveShifts(agentKeyFromAgent(ctx.agent))) {
       return ruleFail(
         "ERROR",
         `${ctx.agentName} — déjà affecté sur cette période`
       );
     }
-    return rulePass();
+
+    if (agentAllowsConsecutiveShifts(agentKeyFromAgent(ctx.agent))) {
+      for (const other of ctx.sameDayAssignments) {
+        if (shiftsOverlap(ctx.startTime, ctx.endTime, other.startTime, other.endTime)) {
+          return ruleFail(
+            "ERROR",
+            `${ctx.agentName} — déjà affecté sur cette période`
+          );
+        }
+      }
+      return rulePass();
+    }
+
+    return ruleFail(
+      "ERROR",
+      `${ctx.agentName} — déjà affecté sur cette période`
+    );
   },
 };
 
@@ -247,16 +266,11 @@ export const planningValidatedRule: PlanningRule = {
   },
 };
 
+/** Kept for registry compatibility — role is informational only, never blocks assignment. */
 export const positionRoleRule: PlanningRule = {
   code: "POSITION_ROLE_MISMATCH",
   name: "Poste / rôle incompatible",
-  check(ctx: ExtendedRuleContext) {
-    if (ctx.role === "TEAM_LEADER" && !resolveIsTeamLeader(ctx.agent)) {
-      return ruleFail(
-        "ERROR",
-        `${ctx.agentName} — poste ${POSITION_ROLE_LABELS.TEAM_LEADER} réservé aux chefs d'équipe`
-      );
-    }
+  check() {
     return rulePass();
   },
 };

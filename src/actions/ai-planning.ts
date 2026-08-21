@@ -13,6 +13,7 @@ import {
 } from "@/services/ai/planningAssistant";
 import {
   applyBulkFillWithSession,
+  applySingleSlotFill,
   fetchBulkSlotSuggestions,
 } from "@/services/ai/planning-session";
 import type { AgentSuggestion, UnfilledSlotPreview } from "@/types/planning";
@@ -112,7 +113,10 @@ export async function fetchBulkSlotPreviewsAction(
   slots: UnfilledSlotPreview[],
   limit = 12
 ): Promise<(UnfilledSlotPreview & { suggestions: AgentSuggestion[] })[]> {
-  return fetchBulkSlotSuggestions(planningMonthId, slots.slice(0, limit));
+  return fetchBulkSlotSuggestions(planningMonthId, slots.slice(0, limit), {
+    useAi: true,
+    simulateSequential: true,
+  });
 }
 
 export async function applyAiBulkSuggestionsAction(
@@ -124,7 +128,8 @@ export async function applyAiBulkSuggestionsAction(
 > {
   try {
     const result = await applyBulkFillWithSession(planningMonthId, slots, {
-      limit,
+      limit: slots.length,
+      useAi: true,
       aiGenerated: true,
     });
 
@@ -132,6 +137,34 @@ export async function applyAiBulkSuggestionsAction(
     return success(result);
   } catch (err) {
     return failure(err instanceof Error ? err.message : "Erreur remplissage IA");
+  }
+}
+
+export async function finalizePlanningFillAction(): Promise<ActionResult<{ ok: true }>> {
+  revalidatePlanning();
+  return success({ ok: true });
+}
+
+export async function applySingleSlotFillAction(
+  planningMonthId: string,
+  slot: UnfilledSlotPreview,
+  useAi: boolean
+): Promise<
+  ActionResult<{
+    status: string;
+    agentName?: string;
+    error?: string;
+  }>
+> {
+  try {
+    const result = await applySingleSlotFill(planningMonthId, slot, { useAi });
+    return success({
+      status: result.status,
+      agentName: result.agentName,
+      error: result.error,
+    });
+  } catch (err) {
+    return failure(err instanceof Error ? err.message : "Erreur affectation");
   }
 }
 

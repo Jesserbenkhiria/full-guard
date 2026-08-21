@@ -56,17 +56,18 @@ export function createEmptySiteRule(sites: SiteOption[], usedSiteIds: string[]):
 
 export function siteRuleFromAgentRule(rule: {
   id: string;
-  siteId: string;
+  siteId?: string;
   ruleType: AgentSiteRuleType;
   allowedDays: DayOfWeek[];
   fixedStartTime: string | null;
   fixedEndTime: string | null;
   maxHours: number | null;
   notes: string | null;
+  site?: { id?: string; name: string };
 }): SiteRuleFormEntry {
   return {
     key: rule.id,
-    siteId: rule.siteId,
+    siteId: rule.siteId ?? rule.site?.id ?? "",
     ruleType: rule.ruleType,
     allowedDays: rule.allowedDays ?? [],
     fixedStartTime: rule.fixedStartTime ?? "",

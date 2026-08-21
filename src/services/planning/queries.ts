@@ -6,6 +6,7 @@ import { sumAssignmentHours, getRemainingContractHours } from "@/lib/planning/ho
 import {
   assignmentsMatchSlot,
   formatShiftLabel,
+  isRequirementSupersededOnDate,
   isSpecificDateInMonth,
   toShiftTemplate,
 } from "@/lib/planning/shift-templates";
@@ -19,7 +20,7 @@ import type {
   SitePlanningGroup,
   UnfilledSlotPreview,
 } from "@/types/planning";
-import type { ShiftType } from "@prisma/client";
+import type { ShiftType, PlanningStatus } from "@prisma/client";
 
 function mapValidationStatus(
   alerts: { severity: string }[]
@@ -103,15 +104,18 @@ function buildSiteGroups(
   year: number,
   month: number,
   habitualBySite: Map<string, string[]>,
-  teamLeaderBySite: Map<string, string[]>
+  teamLeaderBySite: Map<string, string[]>,
+  siteValidationById: Map<string, { status: PlanningStatus; validatedAt: Date | null }>
 ): SitePlanningGroup[] {
   return sites.map((site) => {
     const activeReqs = site.requirements.filter(
       (r) => r.active && isSpecificDateInMonth(r.specificDate, year, month)
     );
 
-    const shiftRows: ShiftPlanningRow[] = activeReqs.map((req) => {
-      const template = toShiftTemplate(req);
+    const templates = activeReqs.map(toShiftTemplate);
+
+    const shiftRows: ShiftPlanningRow[] = activeReqs.map((req, reqIndex) => {
+      const template = templates[reqIndex];
       const label =
         req.label ??
         formatShiftLabel(req.startTime, req.endTime);
@@ -125,6 +129,9 @@ function buildSiteGroups(
           continue;
         }
         if (template.specificDate && template.specificDate !== dateKey) {
+          continue;
+        }
+        if (isRequirementSupersededOnDate(template, dateKey, templates)) {
           continue;
         }
 
@@ -195,6 +202,8 @@ function buildSiteGroups(
       habitualAgents: habitualBySite.get(site.id) ?? [],
       teamLeaderHints: teamLeaderBySite.get(site.id) ?? [],
       shiftRows,
+      validationStatus: siteValidationById.get(site.id)?.status ?? "DRAFT",
+      validatedAt: siteValidationById.get(site.id)?.validatedAt?.toISOString() ?? null,
     };
   });
 }
@@ -315,7 +324,7 @@ export async function getPlanningData(
   const planningMonth = await getOrCreatePlanningMonth(year, month);
   const days = getMonthDays(year, month).map(toDateKey);
 
-  const [sites, agents, rawAssignments, siteRules] = await Promise.all([
+  const [sites, agents, rawAssignments, siteRules, sitePlannings] = await Promise.all([
     prisma.site.findMany({
       where: { active: true },
       include: {
@@ -342,6 +351,10 @@ export async function getPlanningData(
       },
       orderBy: [{ ruleType: "asc" }, { agent: { lastName: "asc" } }],
     }),
+    prisma.sitePlanningMonth.findMany({
+      where: { planningMonthId: planningMonth.id },
+      select: { siteId: true, status: true, validatedAt: true },
+    }),
   ]);
 
   const teamLeaderIds = new Set(
@@ -364,13 +377,17 @@ export async function getPlanningData(
   }
 
   const assignments = rawAssignments.map(mapAssignment);
+  const siteValidationById = new Map(
+    sitePlannings.map((s) => [s.siteId, { status: s.status, validatedAt: s.validatedAt }])
+  );
   const siteGroups = buildSiteGroups(
     sites,
     assignments,
     year,
     month,
     habitualBySite,
-    teamLeaderBySite
+    teamLeaderBySite,
+    siteValidationById
   );
   const agentRows = buildAgentRows(agents, days, assignments);
   const summary = computePlanningSummary(siteGroups, assignments);
@@ -392,6 +409,8 @@ export async function getPlanningData(
               endTime: slot.endTime,
               shiftType: slot.shiftType,
               role: slot.role,
+              slotIndex: slot.slotIndex,
+              requiredAgents: slot.requiredAgents,
             });
           }
         }

@@ -2,7 +2,7 @@ import { prisma } from "@/lib/db";
 import { formatAgentName } from "@/lib/constants";
 import { calculateShiftHours } from "@/lib/planning/hours";
 import { buildAssignmentWriteData } from "@/lib/prisma/assignment-write";
-import { revalidateAfterChange } from "@/services/rules/validate-assignment";
+import { revalidateAfterChange, hasHardWriteConflict } from "@/services/rules/validate-assignment";
 import { mapRuleResultsToReasons } from "@/services/rules/eligibility";
 import { getPlanningData } from "@/services/planning/queries";
 import {
@@ -30,17 +30,22 @@ import { blendEngineAndAiScore } from "@/services/planning/score-fit";
 
 const SYSTEM_PROMPT = `You are a security staffing planning assistant for BLACK SHIELD SÉCURITÉ PRIVÉE (France).
 
-Your job: rank the provided candidates for ONE vacation/shift slot.
+Your job: rank the provided candidates for ONE vacation/shift slot in a **sequential day-by-day** planning run.
+
+Assignments already saved earlier in this month are reflected in each candidate's workedHours,
+remainingHours, previousAssignments, and consecutiveDaysIfAssigned. Prefer choices that keep
+agents within contract hours and under 4 consecutive work days.
 
 The engineFitScore is a deterministic fit score (0-100). Treat it as the primary ranking.
 You may adjust scores by at most 15 points to break close ties, using rankingSignals.
 
 Priority order (highest first):
 1. Fill constrained agents on their ONLY site + allowed days first (e.g. MBODJI — LE DOUZE lundi/mardi only).
-2. ONLY-site agents without day limits, then PREFERRED-site agents.
-3. Day-only or night-restricted specialists on matching shifts.
-4. Polyvalent agents (siteRestrictionType ANY, no site rules) are LAST — backup/replacement only.
-5. Never auto-pick an agent who fails hard rules; only validated (eligible) candidates.
+2. Other ONLY-site agents for that slot (KAID, DJONKA on LE DOUZE).
+3. PREFERRED-site agents are LAST RESORT only — use them only if no ONLY agent is eligible (would break hours, days, or other hard rules). Example: EVINA on LE DOUZE jour.
+4. Day-only or night-restricted specialists on matching shifts.
+5. Polyvalent agents (siteRestrictionType ANY, no site rules) are after PREFERRED — backup/replacement only.
+6. Never auto-pick an agent who fails hard rules; only validated (eligible) candidates.
 
 Rules:
 - Only rank candidates in the list. Use agentId values exactly as provided.
@@ -212,9 +217,10 @@ async function rulesEngineFallback(
 
 /** Ask OpenAI for ranked candidates, then validate each through the Rules Engine. */
 export async function getAiPlanningSuggestions(
-  input: SlotContextInput
+  input: SlotContextInput,
+  existingSession?: PlanningSession
 ): Promise<AgentSuggestion[]> {
-  const session = await PlanningSession.open(input.planningMonthId);
+  const session = existingSession ?? (await PlanningSession.open(input.planningMonthId));
 
   if (!isOpenAiConfigured()) {
     return rulesEngineFallback(input, session);
@@ -308,7 +314,7 @@ async function persistValidatedAssignment(
 
   const validation = await revalidateAfterChange(assignment.id);
 
-  if (validation.status === "error") {
+  if (hasHardWriteConflict(validation.results)) {
     await prisma.assignment.delete({ where: { id: assignment.id } });
     return {
       success: false,
@@ -351,6 +357,7 @@ export async function generateMonthlyPlanning(
   const batch = slots.slice(0, input.limit ?? 60);
   const fill = await applyBulkFillWithSession(data.planningMonth.id, batch, {
     limit: batch.length,
+    useAi: true,
     aiGenerated: true,
   });
 

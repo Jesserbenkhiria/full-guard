@@ -4,6 +4,7 @@ import { ruleFail, rulePass } from "@/services/rules/rule-result";
 import { sumAssignmentHours } from "@/lib/planning/hours";
 import { isForbiddenDayNightTransition } from "@/services/rules/shift-classification";
 import { isDateInRange, toDateKey, parseDateKey, getDayOfWeek } from "@/lib/planning/dates";
+import { AGENT_CONSTRAINTS, getAgentDayShiftLimits, getAgentMaxConsecutiveWorkDays, getAgentMaxWeekendsPerMonth, getAgentMaxShiftsPerMonth, agentKeyFromAgent, agentAllowsConsecutiveShifts } from "@/data/agent-constraints";
 import {
   countWeekendWeeksWorked,
   isWeekendDay,
@@ -116,12 +117,18 @@ export const maxVacationsRule: PlanningRule = {
   },
 };
 
-const MAX_CONSECUTIVE_WORK_DAYS = 4;
-
 export const consecutiveWorkDaysRule: PlanningRule = {
   code: "MAX_CONSECUTIVE_WORK_DAYS",
   name: "Jours travaillés consécutifs",
   check(ctx: ExtendedRuleContext) {
+    const key = agentKeyFromAgent(ctx.agent);
+    const hardCap =
+      AGENT_CONSTRAINTS.find((c) => c.agentKey === key)?.maxConsecutiveWorkDays !=
+      null;
+    if (agentAllowsConsecutiveShifts(key) && !hardCap) {
+      return rulePass();
+    }
+
     const workDates = new Set(
       ctx.monthAssignments.map((a) => toDateKey(a.date))
     );
@@ -143,10 +150,12 @@ export const consecutiveWorkDaysRule: PlanningRule = {
       }
     }
 
-    if (longest > MAX_CONSECUTIVE_WORK_DAYS) {
+    const maxAllowed = getAgentMaxConsecutiveWorkDays(agentKeyFromAgent(ctx.agent));
+
+    if (longest > maxAllowed) {
       return ruleFail(
         "ERROR",
-        `${ctx.agentName} — maximum de jours travaillés consécutifs dépassé (${longest} > ${MAX_CONSECUTIVE_WORK_DAYS})`,
+        `${ctx.agentName} — maximum de jours travaillés consécutifs dépassé (${longest} > ${maxAllowed})`,
         "MAX_CONSECUTIVE_WORK_DAYS"
       );
     }
@@ -158,6 +167,10 @@ export const dayNightTransitionRule: PlanningRule = {
   code: "DAY_NIGHT_TRANSITION",
   name: "Transition jour/nuit",
   check(ctx: ExtendedRuleContext) {
+    if (agentAllowsConsecutiveShifts(agentKeyFromAgent(ctx.agent))) {
+      return rulePass();
+    }
+
     const current = {
       shiftType: ctx.shiftType,
       startTime: ctx.startTime,
@@ -199,8 +212,6 @@ export const dayNightTransitionRule: PlanningRule = {
   },
 };
 
-const MAX_WEEKENDS_PER_MONTH = 2;
-
 export const weekendLimitRule: PlanningRule = {
   code: "MAX_WEEKENDS",
   name: "Maximum week-ends",
@@ -209,13 +220,63 @@ export const weekendLimitRule: PlanningRule = {
       return rulePass();
     }
 
+    const max = getAgentMaxWeekendsPerMonth(agentKeyFromAgent(ctx.agent));
+    if (max == null) return rulePass();
+
     const weekendWeeks = countWeekendWeeksWorked(ctx.monthAssignments, ctx.date);
 
-    if (weekendWeeks > MAX_WEEKENDS_PER_MONTH) {
+    if (weekendWeeks > max) {
       return ruleFail(
-        "WARNING",
-        `${ctx.agentName} — maximum de week-ends travaillés par mois dépassé (${weekendWeeks}/${MAX_WEEKENDS_PER_MONTH})`,
+        "ERROR",
+        `${ctx.agentName} — maximum de ${max} week-ends travaillés par mois dépassé (${weekendWeeks}/${max})`,
         "MAX_WEEKENDS"
+      );
+    }
+    return rulePass();
+  },
+};
+
+export const maxShiftsPerMonthRule: PlanningRule = {
+  code: "MAX_SHIFTS_PER_MONTH",
+  name: "Maximum de vacations par mois",
+  check(ctx: ExtendedRuleContext) {
+    const max = getAgentMaxShiftsPerMonth(agentKeyFromAgent(ctx.agent));
+    if (max == null) return rulePass();
+    const count = ctx.monthAssignments.length;
+    if (count > max) {
+      return ruleFail(
+        "ERROR",
+        `${ctx.agentName} — maximum de ${max} vacations par mois dépassé (${count}/${max})`,
+        "MAX_SHIFTS_PER_MONTH"
+      );
+    }
+    return rulePass();
+  },
+};
+
+export const maxShiftsOnDayRule: PlanningRule = {
+  code: "MAX_SHIFTS_ON_DAY",
+  name: "Maximum de vacations par jour",
+  check(ctx: ExtendedRuleContext) {
+    const agentKey = ctx.agent.firstName.trim()
+      ? `${ctx.agent.firstName.trim()}_${ctx.agent.lastName}`
+      : ctx.agent.lastName;
+    const dayLimits = getAgentDayShiftLimits(agentKey);
+    if (!dayLimits) return rulePass();
+
+    const day = getDayOfWeek(ctx.date);
+    const max = dayLimits[day];
+    if (max == null) return rulePass();
+
+    const count = ctx.monthAssignments.filter(
+      (a) => a.id !== ctx.assignmentId && getDayOfWeek(a.date) === day
+    ).length;
+
+    if (count >= max) {
+      return ruleFail(
+        "ERROR",
+        `${ctx.agentName} — maximum ${max} vacation(s) le ${day.toLowerCase()} par mois`,
+        "MAX_SHIFTS_ON_DAY"
       );
     }
     return rulePass();

@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { formatAgentName, POSITION_ROLE_LABELS, resolveIsTeamLeader } from "@/lib/constants";
+import { formatAgentName } from "@/lib/constants";
 import { calculateShiftHours, getRemainingContractHours, sumAssignmentHours } from "@/lib/planning/hours";
 import {
   evaluateAgentForSlot,
@@ -9,6 +9,7 @@ import {
 } from "@/services/rules/eligibility";
 import { createConfiguredEngine } from "@/services/rules/load-engine";
 import { clampScore, scoreAssignmentFit, teamAverageHours } from "@/services/planning/score-fit";
+import { loadReferenceStatsFromDb } from "@/services/planning/reference-stats";
 import {
   buildDedicatedSiteIds,
   compareAgentsForSlot,
@@ -68,7 +69,7 @@ export async function getAgentSuggestions(
     excludeAssignmentId: input.excludeAssignmentId,
   };
 
-  const [agents, site, monthAssignments, siteHistory, engine] = await Promise.all([
+  const [agents, site, monthAssignments, siteHistory, engine, referenceStats] = await Promise.all([
     prisma.agent.findMany({
       where: { active: true },
       include: { siteRules: { where: { active: true } } },
@@ -84,6 +85,7 @@ export async function getAgentSuggestions(
       _count: { id: true },
     }),
     createConfiguredEngine(),
+    loadReferenceStatsFromDb(prisma),
   ]);
 
   const siteName = site?.name ?? "";
@@ -123,22 +125,9 @@ export async function getAgentSuggestions(
     let score = eligible ? 55 : 0;
     let accepted = eligible;
 
-    if (input.role === "TEAM_LEADER") {
-      if (!resolveIsTeamLeader(agent)) {
-        accepted = false;
-        score = 0;
-        addReason(
-          mapped.reasons,
-          mapped.reasonDetails,
-          `Poste ${POSITION_ROLE_LABELS.TEAM_LEADER} requis`,
-          "error"
-        );
-      }
-    }
-
     if (
       accepted &&
-      !isAgentAllowedOnDedicatedSite(agent, input.siteId, dedicatedSiteIds)
+      !isAgentAllowedOnDedicatedSite(agent, input.siteId, dedicatedSiteIds, input.date)
     ) {
       accepted = false;
       score = 0;
@@ -162,11 +151,13 @@ export async function getAgentSuggestions(
         startTime: input.startTime,
         endTime: input.endTime,
         shiftHours,
+        shiftType: input.shiftType,
         monthAssignments,
         siteHistoryCount: agentMonthCount,
         allTimeSiteCount: siteCountMap.get(agent.id) ?? 0,
         teamAvgHours: avgHours,
         warningCount,
+        referenceStats,
       });
       score += fit.delta;
       for (const reason of fit.reasons) {

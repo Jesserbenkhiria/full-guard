@@ -5,13 +5,42 @@ import { planningValidatedRule } from "@/services/rules/builtin-rules";
 import { contractHoursRule } from "@/services/rules/business-rules";
 import { buildExtendedContext } from "@/services/rules/context";
 import { getValidationResults } from "@/services/rules/rule-result";
+import { invalidateSitePlanningStatus } from "@/services/rules/validate-site-planning-gate";
 import type { RuleResult } from "@/types";
 
 const CONTRACT_ALERT_CODES = [
   "CONTRACT_HOURS_EXCEEDED",
   "OVERTIME_NOT_ALLOWED",
   "OVERTIME_WARNING",
+  "SITE_MAX_HOURS",
 ] as const;
+
+/** Conflicts that must refuse a *new write*. Hours overage is alert-only — never rewrite the roster. */
+const HARD_WRITE_CONFLICT_CODES = [
+  "ABSENCE_CONFLICT",
+  "MEDICAL_CONFLICT",
+  "VACATION_CONFLICT",
+  "DOUBLE_ASSIGNMENT",
+  "UNAVAILABLE_DATE",
+  "DAY_NIGHT_TRANSITION",
+  "MAX_WEEKENDS",
+  "MAX_SHIFTS_PER_MONTH",
+  "NIGHT_FORBIDDEN",
+  "DAY_ONLY_RESTRICTION",
+] as const;
+
+export function isHoursAlertCode(code: string): boolean {
+  return (CONTRACT_ALERT_CODES as readonly string[]).includes(code);
+}
+
+export function hasHardWriteConflict(results: RuleResult[]): boolean {
+  return results.some(
+    (r) =>
+      !r.valid &&
+      r.severity === "ERROR" &&
+      (HARD_WRITE_CONFLICT_CODES as readonly string[]).includes(r.ruleCode)
+  );
+}
 
 function toAlertSeverity(severity: RuleResult["severity"]): AlertSeverity {
   if (severity === "ERROR") return AlertSeverity.ERROR;
@@ -201,7 +230,7 @@ export async function syncAgentContractHoursAlert(
 export async function revalidateAfterChange(assignmentId: string): Promise<ValidationOutcome> {
   const assignment = await prisma.assignment.findUnique({
     where: { id: assignmentId },
-    select: { agentId: true, planningMonthId: true, date: true },
+    select: { agentId: true, planningMonthId: true, siteId: true, date: true },
   });
   if (!assignment) {
     throw new Error("Affectation introuvable");
@@ -223,6 +252,7 @@ export async function revalidateAfterChange(assignmentId: string): Promise<Valid
   }
 
   await syncAgentContractHoursAlert(assignment.agentId, assignment.planningMonthId);
+  await invalidateSitePlanningStatus(assignment.planningMonthId, assignment.siteId);
 
   return outcome;
 }

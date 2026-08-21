@@ -26,6 +26,7 @@ export function mapSiteRules(rules: AgentSiteRule[]): AgentSiteRuleInput[] {
     fixedStartTime: r.fixedStartTime,
     fixedEndTime: r.fixedEndTime,
     maxHours: r.maxHours,
+    notes: r.notes,
     active: r.active,
   }));
 }

@@ -7,11 +7,13 @@ import {
 } from "@/lib/planning/weekends";
 import { hoursBetweenShifts, sumAssignmentHours } from "@/lib/planning/hours";
 import { scoreSiteFit } from "@/services/rules/eligibility";
+import type { ReferenceStatsBundle } from "@/services/planning/reference-stats";
+import { scoreReferenceFit } from "@/services/planning/reference-stats";
+import { agentAllowsConsecutiveShifts, agentKeyFromAgent, getAgentMaxConsecutiveWorkDays, getAgentMaxWeekendsPerMonth } from "@/data/agent-constraints";
 import type { SuggestionReasonDetail } from "@/types/planning";
 import { fr } from "@/lib/i18n/fr";
 
-const MAX_CONSECUTIVE_WORK_DAYS = 4;
-const MAX_WEEKENDS_PER_MONTH = 2;
+const FLEX_SOFT_CONSECUTIVE_WARN = 6;
 const MIN_REST_HOURS = 11;
 
 export type RankableAgent = Agent & { siteRules: AgentSiteRule[] };
@@ -28,11 +30,13 @@ export type FitScoreInput = {
   startTime: string;
   endTime: string;
   shiftHours: number;
+  shiftType?: import("@prisma/client").ShiftType;
   monthAssignments: RankableAssignment[];
   siteHistoryCount: number;
   allTimeSiteCount?: number;
   teamAvgHours: number;
   warningCount: number;
+  referenceStats?: ReferenceStatsBundle | null;
 };
 
 export type RankingSignals = {
@@ -115,7 +119,15 @@ export function scoreAssignmentFit(input: FitScoreInput): FitScoreResult {
   if (hourCap && hourCap > 0) {
     const projected = workedHours + input.shiftHours;
     contractUtilization = projected / hourCap;
-    if (projected <= hourCap * 0.85) {
+    if (input.agent.overtimeAllowed) {
+      if (projected <= hourCap) {
+        delta += 5;
+        reasons.push({ text: "Contrat OK — heures sup. autorisées", type: "ok" });
+      } else {
+        delta += 4;
+        reasons.push({ text: fr.agents.otAllowed, type: "ok" });
+      }
+    } else if (projected <= hourCap * 0.85) {
       delta += 5;
       reasons.push({ text: "Contrat OK", type: "ok" });
     } else if (projected <= hourCap) {
@@ -161,11 +173,12 @@ export function scoreAssignmentFit(input: FitScoreInput): FitScoreResult {
       )
     : weekendWeeksBefore;
 
-  if (isWeekendDay(input.date)) {
-    if (weekendWeeksAfter > MAX_WEEKENDS_PER_MONTH) {
-      delta -= 14;
-      reasons.push({ text: fr.planning.weekendLoaded, type: "warn" });
-    } else if (weekendWeeksAfter === MAX_WEEKENDS_PER_MONTH) {
+  const maxWeekends = getAgentMaxWeekendsPerMonth(agentKeyFromAgent(input.agent));
+  if (isWeekendDay(input.date) && maxWeekends != null) {
+    if (weekendWeeksAfter > maxWeekends) {
+      delta -= 40;
+      reasons.push({ text: fr.planning.weekendLoaded, type: "error" });
+    } else if (weekendWeeksAfter === maxWeekends) {
       delta -= 5;
       reasons.push({ text: fr.planning.weekendLoaded, type: "warn" });
     } else if (weekendWeeksBefore === 0) {
@@ -175,10 +188,18 @@ export function scoreAssignmentFit(input: FitScoreInput): FitScoreResult {
 
   const workDates = agentAssignments.map((a) => toDateKey(a.date));
   const consecutiveDaysIfAssigned = consecutiveStreakIncluding(workDates, slotDateKey);
-  if (consecutiveDaysIfAssigned >= MAX_CONSECUTIVE_WORK_DAYS) {
-    delta -= 10;
-    reasons.push({ text: fr.planning.consecutiveLimit, type: "warn" });
-  } else if (consecutiveDaysIfAssigned === MAX_CONSECUTIVE_WORK_DAYS - 1) {
+  const agentKey = agentKeyFromAgent(input.agent);
+  const flexConsecutive = agentAllowsConsecutiveShifts(agentKey);
+  const consecutiveWarnAt = flexConsecutive
+    ? FLEX_SOFT_CONSECUTIVE_WARN
+    : getAgentMaxConsecutiveWorkDays(agentKey);
+
+  if (consecutiveDaysIfAssigned >= consecutiveWarnAt) {
+    if (!flexConsecutive) {
+      delta -= 10;
+      reasons.push({ text: fr.planning.consecutiveLimit, type: "warn" });
+    }
+  } else if (!flexConsecutive && consecutiveDaysIfAssigned === consecutiveWarnAt - 1) {
     delta -= 4;
   }
 
@@ -210,6 +231,23 @@ export function scoreAssignmentFit(input: FitScoreInput): FitScoreResult {
 
   if (input.warningCount > 0) {
     delta -= input.warningCount * 6;
+  }
+
+  const refFit = scoreReferenceFit(input.referenceStats, {
+    agentId: input.agent.id,
+    siteId: input.siteId,
+    date: input.date,
+    startTime: input.startTime,
+    endTime: input.endTime,
+    shiftType: input.shiftType,
+  });
+  if (refFit.delta > 0) {
+    delta += refFit.delta;
+    if (refFit.matchingTimePattern) {
+      reasons.push({ text: fr.planning.referencePattern, type: "ok" });
+    } else if (refFit.siteShiftCount >= 2) {
+      reasons.push({ text: fr.planning.referenceSite, type: "ok" });
+    }
   }
 
   return {
