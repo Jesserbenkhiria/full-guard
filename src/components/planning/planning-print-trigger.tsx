@@ -5,9 +5,23 @@ import { fr } from "@/lib/i18n/fr";
 
 type PlanningPrintTriggerProps = {
   autoPrint?: boolean;
+  /** Used as default name when saving the print dialog as PDF */
+  documentTitle?: string;
 };
 
-export function PlanningPrintTrigger({ autoPrint = true }: PlanningPrintTriggerProps) {
+export function PlanningPrintTrigger({
+  autoPrint = true,
+  documentTitle,
+}: PlanningPrintTriggerProps) {
+  useEffect(() => {
+    if (!documentTitle) return;
+    const previous = document.title;
+    document.title = documentTitle;
+    return () => {
+      document.title = previous;
+    };
+  }, [documentTitle]);
+
   useEffect(() => {
     if (!autoPrint) return;
     const timer = setTimeout(() => window.print(), 400);

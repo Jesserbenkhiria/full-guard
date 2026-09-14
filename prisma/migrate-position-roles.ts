@@ -45,7 +45,7 @@ async function main() {
       })),
     });
     console.log(
-      `Exigences Les Gémeaux mises à jour (${GEMEAUX_REQUIREMENTS.length} postes, lun-sam ×3 jour).`
+      `Exigences Les Gémeaux mises à jour (${GEMEAUX_REQUIREMENTS.length} postes, spec Lajimi).`
     );
   } else {
     console.log("Site Les Gémeaux introuvable — exigences non modifiées.");

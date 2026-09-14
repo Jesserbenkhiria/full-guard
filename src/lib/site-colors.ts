@@ -6,6 +6,7 @@ export type SiteColorKey =
   | "pleyel"
   | "douze"
   | "visage"
+  | "mediatheque"
   | "default";
 
 export type SiteColorStyle = {
@@ -58,6 +59,14 @@ const SITE_STYLES: Record<SiteColorKey, Omit<SiteColorStyle, "key">> = {
     ringClass: "ring-pink-200 dark:ring-pink-800",
     cellHeatClass: "bg-pink-500/20 border-pink-400/40",
   },
+  mediatheque: {
+    shortLabel: "Médiathèque",
+    badgeClass:
+      "border-cyan-200 bg-cyan-50 text-cyan-900 dark:border-cyan-800 dark:bg-cyan-950 dark:text-cyan-200",
+    dotClass: "bg-cyan-500",
+    ringClass: "ring-cyan-200 dark:ring-cyan-800",
+    cellHeatClass: "bg-cyan-500/20 border-cyan-400/40",
+  },
   default: {
     shortLabel: "Site",
     badgeClass: "border-border bg-muted text-muted-foreground",
@@ -67,13 +76,21 @@ const SITE_STYLES: Record<SiteColorKey, Omit<SiteColorStyle, "key">> = {
   },
 };
 
+function normalizeSiteNameForMatch(siteName: string): string {
+  return siteName
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .toUpperCase();
+}
+
 export function resolveSiteColorKey(siteName: string): SiteColorKey {
-  const normalized = siteName.toUpperCase();
-  if (normalized.includes("GÉMEAUX") || normalized.includes("GEMEAUX")) return "gemeaux";
+  const normalized = normalizeSiteNameForMatch(siteName);
+  if (normalized.includes("GEMEAUX")) return "gemeaux";
   if (normalized.includes("ORDINAL")) return "ordinal";
   if (normalized.includes("PLEYEL")) return "pleyel";
   if (normalized.includes("DOUZE")) return "douze";
   if (normalized.includes("VISAGE")) return "visage";
+  if (normalized.includes("MEDIATHEQUE") || normalized.includes("HORLOGE")) return "mediatheque";
   return "default";
 }
 

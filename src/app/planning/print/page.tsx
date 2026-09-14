@@ -1,4 +1,5 @@
 import { formatMonthLabel, formatShortWeekday, isWeekendDateKey, parseDateKey } from "@/lib/planning/dates";
+import { buildPlanningPrintDocumentTitle } from "@/lib/planning/print-filename";
 import { weekendPrintClass } from "@/lib/planning/weekend-style";
 import { weekendPeriodKey } from "@/lib/planning/weekends";
 import { splitAgentNameForPrint } from "@/lib/planning/print-format";
@@ -17,6 +18,26 @@ import { SHIFT_TYPE_LABELS } from "@/lib/constants";
 type PlanningPrintPageProps = {
   searchParams: Promise<{ year?: string; month?: string; view?: string; siteId?: string }>;
 };
+
+export async function generateMetadata({ searchParams }: PlanningPrintPageProps) {
+  const params = await searchParams;
+  const year = Number(params.year) || new Date().getFullYear();
+  const month = Number(params.month) || new Date().getMonth() + 1;
+  const view = params.view === "agent" ? "agent" : "site";
+  const siteId = params.siteId;
+
+  let siteName: string | undefined;
+  if (siteId) {
+    const data = await getPlanningData(year, month);
+    siteName = data.sites.find((s) => s.siteId === siteId)?.siteName;
+  }
+
+  return {
+    title: {
+      absolute: buildPlanningPrintDocumentTitle({ year, month, siteName, view }),
+    },
+  };
+}
 
 export default async function PlanningPrintPage({ searchParams }: PlanningPrintPageProps) {
   const params = await searchParams;
@@ -48,10 +69,17 @@ export default async function PlanningPrintPage({ searchParams }: PlanningPrintP
 
   const displayData = data;
 
+  const printDocumentTitle = buildPlanningPrintDocumentTitle({
+    year,
+    month,
+    view,
+    siteName: singleSite?.siteName,
+  });
+
   return (
     <div className="planning-print min-h-screen bg-white p-4 text-black">
       <style dangerouslySetInnerHTML={{ __html: PLANNING_PRINT_STYLES }} />
-      <PlanningPrintTrigger autoPrint={exportCheck.ready} />
+      <PlanningPrintTrigger autoPrint={exportCheck.ready} documentTitle={printDocumentTitle} />
 
       <h1>BLACK SHIELD — {fr.planning.title}</h1>
       <p className="meta">

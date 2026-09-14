@@ -7,7 +7,13 @@
  */
 import { DayOfWeek, SiteRestrictionType } from "@prisma/client";
 
-export type SiteKey = "GEMEAUX" | "ORDINAL" | "PLEYEL" | "LE DOUZE" | "VISAGE";
+export type SiteKey =
+  | "GEMEAUX"
+  | "ORDINAL"
+  | "PLEYEL"
+  | "LE DOUZE"
+  | "VISAGE"
+  | "MEDIATHEQUE";
 
 export type AgentConstraintSpec = {
   agentKey: string;
@@ -93,6 +99,25 @@ const WEEKDAYS: DayOfWeek[] = [
 
 const WEEKEND: DayOfWeek[] = [DayOfWeek.SATURDAY, DayOfWeek.SUNDAY];
 
+const MON_TUE_SAT: DayOfWeek[] = [
+  DayOfWeek.MONDAY,
+  DayOfWeek.TUESDAY,
+  DayOfWeek.SATURDAY,
+];
+
+const FRI_SAT_SUN: DayOfWeek[] = [
+  DayOfWeek.FRIDAY,
+  DayOfWeek.SATURDAY,
+  DayOfWeek.SUNDAY,
+];
+
+const MED_KIBRI_DAYS: DayOfWeek[] = [
+  DayOfWeek.TUESDAY,
+  DayOfWeek.WEDNESDAY,
+  DayOfWeek.FRIDAY,
+  DayOfWeek.SATURDAY,
+];
+
 export const AGENT_CONSTRAINTS: AgentConstraintSpec[] = [
   {
     agentKey: "Mohamed_LAJIMI",
@@ -100,7 +125,8 @@ export const AGENT_CONSTRAINTS: AgentConstraintSpec[] = [
     lastName: "LAJIMI",
     contractHours: 156,
     overtimeAllowed: true,
-    consecutiveShiftsAllowed: true,
+    consecutiveShiftsAllowed: false,
+    maxConsecutiveWorkDays: 3,
     maxWeekendsPerMonth: 3,
     sites: [
       {
@@ -129,15 +155,31 @@ export const AGENT_CONSTRAINTS: AgentConstraintSpec[] = [
     lastName: "DJEDIA",
     contractHours: 156,
     overtimeAllowed: true,
-    consecutiveShiftsAllowed: true,
+    consecutiveShiftsAllowed: false,
+    maxConsecutiveWorkDays: 3,
+    maxShiftsPerMonth: 13,
     maxWeekendsPerMonth: 2,
-    sites: [{ siteKey: "GEMEAUX", ruleType: "ONLY" }],
+    sites: [
+      {
+        siteKey: "GEMEAUX",
+        ruleType: "ONLY",
+        allowedDays: [
+          DayOfWeek.MONDAY,
+          DayOfWeek.TUESDAY,
+          DayOfWeek.WEDNESDAY,
+          DayOfWeek.THURSDAY,
+          DayOfWeek.SATURDAY,
+        ],
+        fixedStartTime: "07:00",
+        fixedEndTime: "19:00",
+      },
+    ],
     preferredDays: MON_THU_SAT,
     canWorkNight: true,
     dayOnly: false,
     nightForbidden: false,
     notes:
-      "✅ Gémeaux SSIAP 1 — samedis 07h-19h. Nuit OK même après une journée. SSIAP 2 vendredi si besoin. Dépassement OK",
+      "✅ Gémeaux — oct. 2026 : lun–jeu + sam jour (comme LAJIMI), 156 h OK",
   },
   {
     agentKey: "Ibrahim Khalil_DIAKITE",
@@ -145,7 +187,7 @@ export const AGENT_CONSTRAINTS: AgentConstraintSpec[] = [
     lastName: "DIAKITE",
     contractHours: 156,
     overtimeAllowed: false,
-    consecutiveShiftsAllowed: true,
+    consecutiveShiftsAllowed: false,
     maxShiftsPerMonth: 13,
     maxConsecutiveWorkDays: 3,
     sites: [{ siteKey: "GEMEAUX", ruleType: "ONLY" }],
@@ -153,7 +195,7 @@ export const AGENT_CONSTRAINTS: AgentConstraintSpec[] = [
     dayOnly: false,
     nightForbidden: false,
     notes:
-      "✅ Gémeaux jour + nuit. Maximum 156 h / 13 vacations. Pas 4 nuits à la file",
+      "✅ Gémeaux nuit uniquement. Max 156 h / 13 vac. Max 3 vac à la filet. À partir du 19/10 : ven–sam–dim nuit",
   },
   {
     agentKey: "Jeannot_SEITI",
@@ -161,12 +203,13 @@ export const AGENT_CONSTRAINTS: AgentConstraintSpec[] = [
     lastName: "SEITI",
     contractHours: 156,
     overtimeAllowed: false,
+    maxShiftsPerMonth: 13,
     maxWeekendsPerMonth: 2,
     sites: [{ siteKey: "GEMEAUX", ruleType: "ONLY" }],
     canWorkNight: false,
     dayOnly: true,
     nightForbidden: true,
-    notes: "✅ Gémeaux — journée uniquement",
+    notes: "✅ Gémeaux — journée uniquement, 156 h / 13 vac",
   },
   {
     agentKey: "Pierre Marie_EVINA",
@@ -189,7 +232,7 @@ export const AGENT_CONSTRAINTS: AgentConstraintSpec[] = [
     dayOnly: true,
     nightForbidden: true,
     notes:
-      "✅ Congé Gémeaux 14/09→30/09. Vendredis SSIAP 2 jour de préférence, SAUF s'il est déjà sur LE DOUZE",
+      "✅ Oct. 2026 : 80–100 h. Vendredis SSIAP 2 jour de préférence",
     preferredDays: [DayOfWeek.FRIDAY],
   },
   {
@@ -265,21 +308,22 @@ export const AGENT_CONSTRAINTS: AgentConstraintSpec[] = [
     canWorkNight: false,
     dayOnly: true,
     nightForbidden: true,
-    notes: "✅ Gémeaux — journée uniquement. Maximum 120 h, ne pas dépasser",
+    maxShiftsPerMonth: 10,
+    notes: "✅ Gémeaux — journée uniquement, 120 h max",
   },
   {
     agentKey: "Ramata_DEMBELE",
     firstName: "Ramata",
     lastName: "DEMBELE",
     contractHours: 156,
-    overtimeAllowed: true,
+    overtimeAllowed: false,
+    maxShiftsPerMonth: 13,
     maxWeekendsPerMonth: 2,
     sites: [{ siteKey: "GEMEAUX", ruleType: "ONLY" }],
     canWorkNight: false,
     dayOnly: true,
     nightForbidden: true,
-    notes:
-      "✅ Gémeaux journée uniquement (Ramata). Quelques vacations jour en plus, dépassement modéré OK",
+    notes: "✅ Gémeaux journée uniquement — 156 h / 13 vac",
   },
   {
     agentKey: "Lamine_CAMARA",
@@ -461,12 +505,55 @@ export const AGENT_CONSTRAINTS: AgentConstraintSpec[] = [
     lastName: "DORCE",
     contractHours: 156,
     overtimeAllowed: false,
-    sites: [],
-    polyvalent: true,
+    sites: [
+      { siteKey: "PLEYEL", ruleType: "PREFERRED", maxHours: 156 },
+      { siteKey: "GEMEAUX", ruleType: "PREFERRED" },
+    ],
     canWorkNight: true,
     dayOnly: false,
     nightForbidden: false,
-    notes: "✅ Polyvalent remplaçant — congé tout septembre 2026",
+    notes:
+      "✅ PLEYEL + Gémeaux — jamais les deux sites le même jour (oct. 2026)",
+  },
+  {
+    agentKey: "CHARGUI",
+    firstName: "",
+    lastName: "CHARGUI",
+    contractHours: 156,
+    overtimeAllowed: false,
+    sites: [
+      {
+        siteKey: "GEMEAUX",
+        ruleType: "PREFERRED",
+        allowedDays: WEEKEND,
+      },
+    ],
+    preferredDays: WEEKEND,
+    canWorkNight: true,
+    dayOnly: false,
+    nightForbidden: false,
+    notes:
+      "✅ Gémeaux — oct. 2026 : joker (surtout WE), à minimiser. Chef le vendredi seulement si EVINA absente",
+  },
+  {
+    agentKey: "KIBRI",
+    firstName: "",
+    lastName: "KIBRI",
+    contractHours: 156,
+    overtimeAllowed: false,
+    sites: [
+      {
+        siteKey: "MEDIATHEQUE",
+        ruleType: "ONLY",
+        allowedDays: MED_KIBRI_DAYS,
+      },
+      { siteKey: "GEMEAUX", ruleType: "PREFERRED" },
+    ],
+    canWorkNight: true,
+    dayOnly: false,
+    nightForbidden: false,
+    notes:
+      "✅ Médiathèque + Gémeaux pour 156 h — pas de chevauchement Médiathèque/Gémeaux même jour",
   },
 ];
 
